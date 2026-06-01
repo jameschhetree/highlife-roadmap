@@ -1,0 +1,76 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Category {
+  Legal
+  Finance
+  Operations
+  Marketing
+  Brand
+  Pricing
+  Revenue
+  Hiring
+}
+
+enum Owner {
+  JoJo
+  Jaco
+  Both
+  Unassigned
+}
+
+model Phase {
+  id        String @id @default(cuid())
+  number    Int    @unique
+  name      String
+  dates     String
+  goal      String
+  color     String
+  colorBg   String
+  sortOrder Int
+  tasks     Task[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Task {
+  id        String   @id @default(cuid())
+  phaseId   String
+  phase     Phase    @relation(fields: [phaseId], references: [id], onDelete: Cascade)
+  title     String
+  dueLabel  String   @default("")
+  category  Category @default(Operations)
+  owner     Owner    @default(Unassigned)
+  done      Boolean  @default(false)
+  sortOrder Int      @default(0)
+  steps     Step[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Step {
+  id        String  @id @default(cuid())
+  taskId    String
+  task      Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  title     String
+  owner     Owner   @default(Unassigned)
+  done      Boolean @default(false)
+  sortOrder Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ChatLog {
+  id        String   @id @default(cuid())
+  role      String
+  content   String
+  createdAt DateTime @default(now())
+}
