@@ -41,3 +41,7 @@ body {
   background-color: rgba(0,0,0,0.06);
   box-shadow: 0 0 0 2px rgba(245,158,11,0.3);
 }
+
+/* Tab strip scrolls without a visible bar on mobile. */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

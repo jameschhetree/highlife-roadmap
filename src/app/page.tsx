@@ -1,1059 +1,598 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+/**
+ * HighLife Roadmap.
+ *
+ * The eight views named in section 17 of the Operating System document, over the
+ * item shape section 17 specifies. Deliberately not a Kanban board: the plan's
+ * unit of work is a commitment with an owner and a due date, not a card drifting
+ * between columns.
+ *
+ * Layout follows what Jaco asked for in July — divider-separated rows rather
+ * than bordered boxes, shadow only where something is genuinely raised, and
+ * underline tabs. He described the previous bordered-card version as the worst
+ * build we had done.
+ */
+
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  ChevronDown,
-  ChevronRight,
-  Plus,
-  Trash2,
-  GripVertical,
-  MessageSquare,
-  RefreshCw,
-  Send,
-  X,
-  Check,
-} from "lucide-react";
+import { isAdminAuthed } from "@/lib/admin-auth";
 
-/* ── Types ─────────────────────────────────────────────── */
+type View =
+  | "ThisWeek" | "QuarterlyOKR" | "RevenueProject"
+  | "ContentCalendar" | "Event" | "SOP" | "Blocked" | "DecisionLog";
 
-interface Step {
-  id: string;
-  title: string;
-  owner: string;
-  done: boolean;
+type Item = {
+  id: string; title: string; owner: string; pillar: string; view: string;
+  quarterId: string | null; objectiveId: string | null;
+  priority: "Critical" | "Standard" | "Backlog";
+  status: "NotStarted" | "InProgress" | "Blocked" | "Done";
+  dueDate: string | null; kpi: string; notes: string; dependency: string;
   sortOrder: number;
-}
+};
+type KeyResult = { id: string; label: string; text: string; score: number | null };
+type Objective = { id: string; kind: string; title: string; keyResults: KeyResult[] };
+type Quarter = {
+  id: string; key: string; name: string; dates: string; revenueTarget: string;
+  cumulative: string; focus: string; isCurrent: boolean; objectives: Objective[];
+};
+type Week = { id: string; week: number; objective: string; deliverable: string; done: boolean };
 
-interface Task {
-  id: string;
-  phaseId: string;
-  title: string;
-  dueLabel: string;
-  category: string;
-  owner: string;
-  done: boolean;
-  sortOrder: number;
-  steps: Step[];
-}
+const VIEWS: { key: View; label: string; blurb: string }[] = [
+  { key: "ThisWeek", label: "This Week", blurb: "Leadership commitments due before next Monday." },
+  { key: "QuarterlyOKR", label: "Quarterly OKRs", blurb: "Three company objectives per quarter. No more." },
+  { key: "RevenueProject", label: "Revenue", blurb: "Offer, funnel, campaigns, partnerships and pricing tests." },
+  { key: "ContentCalendar", label: "Content", blurb: "HL Podcast, commercial batches, freestyle and event deliverables." },
+  { key: "Event", label: "Events", blurb: "Every event needs one primary KPI: revenue, leads, content or community." },
+  { key: "SOP", label: "SOPs", blurb: "Document the work in the order revenue touches it." },
+  { key: "Blocked", label: "Blocked", blurb: "Every item waiting on a decision, a person or a dependency." },
+  { key: "DecisionLog", label: "Decisions", blurb: "Rockville, hires, package changes, new room capacity." },
+];
 
-interface Phase {
-  id: string;
-  number: number;
-  name: string;
-  dates: string;
-  goal: string;
-  color: string;
-  colorBg: string;
-  sortOrder: number;
-  tasks: Task[];
-}
-
-interface ChatMessage {
-  id: string;
-  role: string;
-  content: string;
-  createdAt: string;
-}
-
-/* ── Constants ─────────────────────────────────────────── */
-
-const OWNERS = ["JoJo", "Jaco", "Both", "Unassigned"] as const;
-const CATEGORIES = [
-  "Legal",
-  "Finance",
-  "Operations",
-  "Marketing",
-  "Brand",
-  "Pricing",
-  "Revenue",
-  "Hiring",
-] as const;
-
-const OWNER_COLORS: Record<string, { bg: string; text: string }> = {
-  JoJo: { bg: "bg-blue-50", text: "text-blue-700" },
-  Jaco: { bg: "bg-emerald-50", text: "text-emerald-700" },
-  Both: { bg: "bg-purple-50", text: "text-purple-700" },
-  Unassigned: { bg: "bg-gray-50", text: "text-gray-500" },
+const OBJECTIVE_LABEL: Record<string, string> = {
+  RevenueEngine: "O1 · Revenue engine",
+  OperatingSystem: "O2 · Operating system",
+  BrandFootprint: "O3 · Brand & cultural footprint",
 };
 
-const CAT_COLORS: Record<string, { bg: string; text: string }> = {
-  Legal: { bg: "bg-red-50", text: "text-red-700" },
-  Finance: { bg: "bg-amber-50", text: "text-amber-800" },
-  Operations: { bg: "bg-stone-100", text: "text-stone-600" },
-  Marketing: { bg: "bg-emerald-50", text: "text-emerald-700" },
-  Brand: { bg: "bg-violet-50", text: "text-violet-700" },
-  Pricing: { bg: "bg-lime-50", text: "text-lime-700" },
-  Revenue: { bg: "bg-rose-50", text: "text-rose-700" },
-  Hiring: { bg: "bg-blue-50", text: "text-blue-700" },
+const STATUS_STYLE: Record<Item["status"], string> = {
+  NotStarted: "text-[#9a9a94]",
+  InProgress: "text-teal-700",
+  Blocked: "text-red-700",
+  Done: "text-[#b8b5ad] line-through",
 };
 
-/* ── Main Component ────────────────────────────────────── */
+const PILLARS = ["Revenue", "Podcast", "Music", "Media", "Merch", "Events", "Operations", "Finance"];
+const PRIORITIES = ["Critical", "Standard", "Backlog"];
+const STATUSES = ["NotStarted", "InProgress", "Blocked", "Done"];
+
+const fmtDate = (d: string | null) =>
+  d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "";
 
 export default function RoadmapPage() {
-  const [phases, setPhases] = useState<Phase[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<string>("All");
-  const [lastSync, setLastSync] = useState<Date | null>(null);
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [chatInput, setChatInput] = useState("");
-  const [chatLoading, setChatLoading] = useState(false);
-  const [expandedPhases, setExpandedPhases] = useState<Set<string>>(new Set());
-  const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
-  const [dragTaskId, setDragTaskId] = useState<string | null>(null);
-  const [dragStepId, setDragStepId] = useState<string | null>(null);
-  const chatEndRef = useRef<HTMLDivElement>(null);
-  const firstLoad = useRef(true);
-
-  // Fetch data
-  const fetchData = useCallback(async () => {
-    try {
-      const res = await fetch("/api/phases");
-      const data = await res.json();
-      setPhases(data);
-      setLastSync(new Date());
-      if (firstLoad.current) {
-        setExpandedPhases(new Set(data.map((p: Phase) => p.id)));
-        firstLoad.current = false;
-      }
-    } catch (err) {
-      console.error("Failed to fetch:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const router = useRouter();
+  const [ready, setReady] = useState(false);
+  const [view, setView] = useState<View>("ThisWeek");
+  const [quarters, setQuarters] = useState<Quarter[]>([]);
+  const [items, setItems] = useState<Item[]>([]);
+  const [weeks, setWeeks] = useState<Week[]>([]);
+  const [error, setError] = useState("");
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (!isAdminAuthed()) router.push("/login");
+    else setReady(true);
+  }, [router]);
 
-  // Chat history
-  useEffect(() => {
-    if (chatOpen) {
-      fetch("/api/chat")
-        .then((r) => r.json())
-        .then(setChatMessages)
-        .catch(console.error);
-    }
-  }, [chatOpen]);
+  const load = async () => {
+    const r = await fetch("/api/roadmap");
+    if (!r.ok) { setError("Could not load the roadmap."); return; }
+    const d = await r.json();
+    setQuarters(d.quarters); setItems(d.items); setWeeks(d.weeks);
+  };
+  useEffect(() => { if (ready) load(); }, [ready]);
 
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatMessages]);
+  const current = quarters.find((q) => q.isCurrent) ?? quarters[0];
 
-  /* ── API helpers ─────────────────────────────────────── */
+  // Blocked is a status, not a stored view — an item is blocked wherever it lives.
+  const visible = useMemo(() => {
+    if (view === "Blocked") return items.filter((i) => i.status === "Blocked");
+    return items.filter((i) => i.view === view);
+  }, [items, view]);
 
-  const api = async (
-    url: string,
-    method: string,
-    body?: Record<string, unknown>
-  ) => {
-    const res = await fetch(url, {
-      method,
+  const patch = async (id: string, body: Partial<Item>) => {
+    setError("");
+    const r = await fetch(`/api/items/${id}`, {
+      method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: body ? JSON.stringify(body) : undefined,
+      body: JSON.stringify(body),
     });
-    return res.json();
+    if (!r.ok) { setError((await r.json()).error ?? "Could not save."); return; }
+    load();
   };
 
-  const updateTask = async (id: string, data: Record<string, unknown>) => {
-    await api(`/api/tasks/${id}`, "PATCH", data);
-    fetchData();
+  const remove = async (id: string) => {
+    await fetch(`/api/items/${id}`, { method: "DELETE" });
+    load();
   };
 
-  const deleteTask = async (id: string) => {
-    if (!confirm("Delete this task and all its steps?")) return;
-    await api(`/api/tasks/${id}`, "DELETE");
-    fetchData();
-  };
-
-  const addTask = async (phaseId: string) => {
-    await api("/api/tasks", "POST", {
-      phaseId,
-      title: "New Task",
-      category: "Operations",
+  const scoreKr = async (id: string, score: string) => {
+    setError("");
+    const r = await fetch(`/api/krs/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ score: score === "" ? null : score }),
     });
-    fetchData();
+    if (!r.ok) { setError((await r.json()).error ?? "Could not save."); return; }
+    load();
   };
 
-  const updateStep = async (id: string, data: Record<string, unknown>) => {
-    await api(`/api/steps/${id}`, "PATCH", data);
-    fetchData();
+  const toggleWeek = async (w: Week) => {
+    await fetch(`/api/weeks/${w.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ done: !w.done }),
+    });
+    load();
   };
 
-  const deleteStep = async (id: string) => {
-    if (!confirm("Delete this step?")) return;
-    await api(`/api/steps/${id}`, "DELETE");
-    fetchData();
-  };
+  if (!ready) return null;
 
-  const addStep = async (taskId: string) => {
-    await api("/api/steps", "POST", { taskId, title: "New Step" });
-    fetchData();
-  };
-
-  const sendChat = async () => {
-    if (!chatInput.trim() || chatLoading) return;
-    const msg = chatInput;
-    setChatInput("");
-    setChatLoading(true);
-    setChatMessages((prev) => [
-      ...prev,
-      {
-        id: "temp-" + Date.now(),
-        role: "user",
-        content: msg,
-        createdAt: new Date().toISOString(),
-      },
-    ]);
-
-    try {
-      const res = await api("/api/chat", "POST", { message: msg });
-      setChatMessages((prev) => [
-        ...prev,
-        {
-          id: "resp-" + Date.now(),
-          role: "assistant",
-          content: res.reply || res.error || "No response",
-          createdAt: new Date().toISOString(),
-        },
-      ]);
-      if (res.applied && res.applied.length > 0) {
-        fetchData();
-      }
-    } catch {
-      setChatMessages((prev) => [
-        ...prev,
-        {
-          id: "err-" + Date.now(),
-          role: "assistant",
-          content: "Failed to get response. Please try again.",
-          createdAt: new Date().toISOString(),
-        },
-      ]);
-    } finally {
-      setChatLoading(false);
-    }
-  };
-
-  /* ── Drag & Drop ─────────────────────────────────────── */
-
-  const handleTaskDragStart = (taskId: string) => setDragTaskId(taskId);
-
-  const handleTaskDragOver = (
-    e: React.DragEvent,
-    targetTaskId: string,
-    phaseId: string
-  ) => {
-    e.preventDefault();
-    if (!dragTaskId || dragTaskId === targetTaskId) return;
-    const phase = phases.find((p) => p.id === phaseId);
-    if (!phase) return;
-    const dragIdx = phase.tasks.findIndex((t) => t.id === dragTaskId);
-    const targetIdx = phase.tasks.findIndex((t) => t.id === targetTaskId);
-    if (dragIdx === -1 || targetIdx === -1) return;
-    const newTasks = [...phase.tasks];
-    const [moved] = newTasks.splice(dragIdx, 1);
-    newTasks.splice(targetIdx, 0, moved);
-    setPhases((prev) =>
-      prev.map((p) => (p.id === phaseId ? { ...p, tasks: newTasks } : p))
-    );
-  };
-
-  const handleTaskDragEnd = async (phaseId: string) => {
-    setDragTaskId(null);
-    const phase = phases.find((p) => p.id === phaseId);
-    if (!phase) return;
-    for (let i = 0; i < phase.tasks.length; i++) {
-      if (phase.tasks[i].sortOrder !== i) {
-        await api(`/api/tasks/${phase.tasks[i].id}`, "PATCH", { sortOrder: i });
-      }
-    }
-  };
-
-  const handleStepDragStart = (stepId: string) => setDragStepId(stepId);
-
-  const handleStepDragOver = (
-    e: React.DragEvent,
-    targetStepId: string,
-    taskId: string
-  ) => {
-    e.preventDefault();
-    if (!dragStepId || dragStepId === targetStepId) return;
-    setPhases((prev) =>
-      prev.map((p) => ({
-        ...p,
-        tasks: p.tasks.map((t) => {
-          if (t.id !== taskId) return t;
-          const dragIdx = t.steps.findIndex((s) => s.id === dragStepId);
-          const targetIdx = t.steps.findIndex((s) => s.id === targetStepId);
-          if (dragIdx === -1 || targetIdx === -1) return t;
-          const newSteps = [...t.steps];
-          const [moved] = newSteps.splice(dragIdx, 1);
-          newSteps.splice(targetIdx, 0, moved);
-          return { ...t, steps: newSteps };
-        }),
-      }))
-    );
-  };
-
-  const handleStepDragEnd = async (taskId: string) => {
-    setDragStepId(null);
-    const task = phases.flatMap((p) => p.tasks).find((t) => t.id === taskId);
-    if (!task) return;
-    for (let i = 0; i < task.steps.length; i++) {
-      if (task.steps[i].sortOrder !== i) {
-        await api(`/api/steps/${task.steps[i].id}`, "PATCH", { sortOrder: i });
-      }
-    }
-  };
-
-  /* ── Stats ───────────────────────────────────────────── */
-
-  const totalTasks = phases.reduce((a, p) => a + p.tasks.length, 0);
-  const totalSteps = phases.reduce(
-    (a, p) => a + p.tasks.reduce((b, t) => b + t.steps.length, 0),
-    0
-  );
-  const doneSteps = phases.reduce(
-    (a, p) =>
-      a + p.tasks.reduce((b, t) => b + t.steps.filter((s) => s.done).length, 0),
-    0
-  );
-  const doneTasks = phases.reduce(
-    (a, p) => a + p.tasks.filter((t) => t.done).length,
-    0
-  );
-
-  /* ── Filter ──────────────────────────────────────────── */
-
-  const filteredPhases = phases.map((p) => ({
-    ...p,
-    tasks:
-      filter === "All" ? p.tasks : p.tasks.filter((t) => t.owner === filter),
-  }));
-
-  /* ── Render ──────────────────────────────────────────── */
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-[#999] text-sm">
-          Loading roadmap...
-        </div>
-      </div>
-    );
-  }
+  const done = items.filter((i) => i.status === "Done").length;
+  const blocked = items.filter((i) => i.status === "Blocked").length;
 
   return (
-    <div className="min-h-screen pb-20 relative overflow-hidden">
-      {/* Ambient gradient orbs */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div
-          className="absolute w-[600px] h-[600px] rounded-full opacity-[0.06] blur-[120px]"
-          style={{
-            background: "radial-gradient(circle, #F59E0B, transparent 70%)",
-            top: "-200px",
-            left: "-100px",
-            animation: "drift1 25s ease-in-out infinite",
-          }}
-        />
-        <div
-          className="absolute w-[500px] h-[500px] rounded-full opacity-[0.05] blur-[100px]"
-          style={{
-            background: "radial-gradient(circle, #0D9488, transparent 70%)",
-            bottom: "-150px",
-            right: "-100px",
-            animation: "drift2 30s ease-in-out infinite",
-          }}
-        />
-        <div
-          className="absolute w-[400px] h-[400px] rounded-full opacity-[0.04] blur-[80px]"
-          style={{
-            background: "radial-gradient(circle, #7C3AED, transparent 70%)",
-            top: "40%",
-            left: "60%",
-            animation: "drift3 20s ease-in-out infinite",
-          }}
-        />
-      </div>
-
-      <style>{`
-        @keyframes drift1 { 0%,100% { transform: translate(0,0); } 50% { transform: translate(60px,40px); } }
-        @keyframes drift2 { 0%,100% { transform: translate(0,0); } 50% { transform: translate(-50px,-30px); } }
-        @keyframes drift3 { 0%,100% { transform: translate(0,0); } 50% { transform: translate(-40px,50px); } }
-      `}</style>
-
-      <div className="relative z-10 max-w-4xl mx-auto px-4 pt-8">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="mb-6"
-        >
-          <div className="flex items-center justify-between mb-1">
-            <div>
-              <h1 className="text-xl font-semibold tracking-[0.07em] text-[#1a1a1a]">
-                HIGHLIFE STUDIOS
-              </h1>
-              <p className="text-sm text-[#888]">
-                12-Month Roadmap -- June 2026 to May 2027
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setChatOpen(!chatOpen)}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white border border-[#e5e5e5] text-sm text-[#555] hover:border-[#ccc] hover:bg-[#f9f9f9] transition-all shadow-sm"
-              >
-                <MessageSquare size={15} />
-                AI Chat
-              </button>
-            </div>
+    <div className="min-h-screen bg-[#FAFAF8]">
+      <header className="px-5 md:px-10 pt-8 md:pt-12 pb-6 max-w-[1180px] mx-auto">
+        <div className="flex items-baseline justify-between gap-4 flex-wrap">
+          <div>
+            <p className="text-[11px] tracking-[0.22em] uppercase text-[#a3a099] mb-2">
+              HighLife Operating System
+            </p>
+            <h1 className="text-[30px] md:text-[38px] leading-[1.05] font-semibold tracking-[-0.02em] text-[#1a1a1a]">
+              Roadmap
+            </h1>
           </div>
-        </motion.div>
-
-        {/* Stats */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-          className="grid grid-cols-4 gap-3 mb-5"
-        >
-          {[
-            { label: "Tasks", value: totalTasks },
-            { label: "Steps", value: totalSteps },
-            { label: "Steps Done", value: doneSteps },
-            { label: "Tasks Done", value: doneTasks },
-          ].map((s) => (
-            <div
-              key={s.label}
-              className="bg-white border border-[#eee] rounded-xl px-4 py-3 shadow-[0_1px_3px_rgba(0,0,0,0.04)]"
-            >
-              <div className="text-xs text-[#999] mb-0.5">{s.label}</div>
-              <div className="text-2xl font-semibold text-[#1a1a1a]">
-                {s.value}
-              </div>
+          {current && (
+            <div className="text-right">
+              <p className="text-[11px] tracking-[0.16em] uppercase text-[#a3a099]">{current.name}</p>
+              <p className="text-[15px] text-[#4a4740] mt-1">{current.dates}</p>
             </div>
-          ))}
-        </motion.div>
+          )}
+        </div>
 
-        {/* Timeline bar */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.15 }}
-          className="grid grid-cols-4 rounded-xl overflow-hidden border border-[#e5e5e5] mb-5 shadow-sm"
-        >
-          {[
-            {
-              phase: 1,
-              name: "Foundation",
-              dates: "Jun - Jul - Aug 2026",
-              bg: "#FEF3C7",
-              text: "#92400E",
-              sub: "#B45309",
-            },
-            {
-              phase: 2,
-              name: "Revenue Growth",
-              dates: "Sep - Oct - Nov 2026",
-              bg: "#CCFBF1",
-              text: "#134E4A",
-              sub: "#0F766E",
-            },
-            {
-              phase: 3,
-              name: "Brand Expansion",
-              dates: "Dec 2026 - Jan - Feb 2027",
-              bg: "#EDE9FE",
-              text: "#4C1D95",
-              sub: "#6D28D9",
-            },
-            {
-              phase: 4,
-              name: "Scale",
-              dates: "Mar - Apr - May 2027",
-              bg: "#DBEAFE",
-              text: "#1E3A8A",
-              sub: "#1D4ED8",
-            },
-          ].map((tl) => (
-            <div
-              key={tl.phase}
-              className="px-3 py-2.5 border-r border-[#e5e5e5] last:border-r-0"
-              style={{ background: tl.bg }}
-            >
-              <div
-                className="text-[11px] font-semibold"
-                style={{ color: tl.text }}
-              >
-                Phase {tl.phase} -- {tl.name}
-              </div>
-              <div className="text-[10px]" style={{ color: tl.sub }}>
-                {tl.dates}
-              </div>
-            </div>
-          ))}
-        </motion.div>
+        {current && (
+          <div className="mt-8 flex flex-wrap gap-x-10 gap-y-4">
+            <Stat label="Quarter target" value={current.revenueTarget} />
+            <Stat label="Cumulative" value={current.cumulative} />
+            <Stat label="Done" value={String(done)} />
+            <Stat label="Blocked" value={String(blocked)} tone={blocked ? "warn" : undefined} />
+          </div>
+        )}
+        {current && (
+          <p className="mt-6 text-[15px] leading-relaxed text-[#4a4740] max-w-[68ch]">{current.focus}</p>
+        )}
+      </header>
 
-        {/* Owner filter pills */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          className="flex items-center gap-2 mb-6 flex-wrap"
-        >
-          <span className="text-xs text-[#999] mr-1">Filter:</span>
-          {["All", ...OWNERS].map((o) => (
-            <button
-              key={o}
-              onClick={() => setFilter(o)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                filter === o
-                  ? "bg-[#1a1a1a] text-white shadow-sm"
-                  : "bg-white border border-[#e5e5e5] text-[#666] hover:border-[#ccc]"
-              }`}
-            >
-              {o}
-            </button>
-          ))}
-        </motion.div>
+      <nav className="sticky top-0 z-20 bg-[#FAFAF8]/92 backdrop-blur-sm border-b border-[#e8e5dd]">
+        <div className="max-w-[1180px] mx-auto px-5 md:px-10">
+          <div className="flex gap-7 overflow-x-auto no-scrollbar">
+            {VIEWS.map((v) => {
+              const n = v.key === "Blocked"
+                ? blocked
+                : items.filter((i) => i.view === v.key).length;
+              const active = view === v.key;
+              return (
+                <button
+                  key={v.key}
+                  onClick={() => setView(v.key)}
+                  className={`shrink-0 py-4 text-[14px] whitespace-nowrap border-b-2 -mb-px transition-colors ${
+                    active
+                      ? "border-[#1a1a1a] text-[#1a1a1a] font-medium"
+                      : "border-transparent text-[#8a8780] hover:text-[#4a4740]"
+                  }`}
+                >
+                  {v.label}
+                  {n > 0 && <span className="ml-2 text-[12px] text-[#b0aca3] tabular-nums">{n}</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </nav>
 
-        {/* Chat Panel */}
+      <main className="max-w-[1180px] mx-auto px-5 md:px-10 py-8 md:py-10">
+        <p className="text-[14px] text-[#8a8780] mb-7">
+          {VIEWS.find((v) => v.key === view)?.blurb}
+        </p>
+
         <AnimatePresence>
-          {chatOpen && (
+          {error && (
             <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.3 }}
-              className="mb-6 overflow-hidden"
+              initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+              className="mb-6 px-4 py-3 rounded-lg bg-red-50 text-[14px] text-red-800"
             >
-              <div className="bg-white border border-[#e5e5e5] rounded-xl shadow-sm overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-3 border-b border-[#eee]">
-                  <div className="flex items-center gap-2">
-                    <MessageSquare size={14} className="text-[#888]" />
-                    <span className="text-sm font-medium text-[#1a1a1a]">
-                      AI Roadmap Assistant
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => setChatOpen(false)}
-                    className="text-[#ccc] hover:text-[#888] transition-colors"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-                <div className="h-48 overflow-y-auto px-4 py-3 space-y-3">
-                  {chatMessages.length === 0 && (
-                    <p className="text-xs text-[#bbb] italic">
-                      Try: &quot;Add a task to Phase 2 about vendor contracts,
-                      assign to Jaco&quot; or &quot;What is left for JoJo?&quot;
-                    </p>
-                  )}
-                  {chatMessages.map((m) => (
-                    <div
-                      key={m.id}
-                      className={`text-sm ${
-                        m.role === "user" ? "text-right" : ""
-                      }`}
-                    >
-                      <div
-                        className={`inline-block max-w-[85%] px-3 py-2 rounded-lg ${
-                          m.role === "user"
-                            ? "bg-[#1a1a1a] text-white"
-                            : "bg-[#f3f3f2] text-[#333]"
-                        }`}
-                      >
-                        <div className="whitespace-pre-wrap text-[13px]">
-                          {m.content}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  {chatLoading && (
-                    <div className="flex items-center gap-2 text-xs text-[#999]">
-                      <div className="w-2 h-2 rounded-full bg-[#ccc] animate-pulse" />
-                      Thinking...
-                    </div>
-                  )}
-                  <div ref={chatEndRef} />
-                </div>
-                <div className="border-t border-[#eee] px-4 py-3 flex gap-2">
-                  <input
-                    type="text"
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && sendChat()}
-                    placeholder="Ask the AI to modify the roadmap..."
-                    className="flex-1 text-sm px-3 py-2 border border-[#e5e5e5] rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-400 transition-all bg-[#fafaf8]"
-                    disabled={chatLoading}
-                  />
-                  <button
-                    onClick={sendChat}
-                    disabled={chatLoading || !chatInput.trim()}
-                    className="px-4 py-2 bg-[#1a1a1a] text-white rounded-lg text-sm hover:bg-[#333] disabled:opacity-40 transition-all flex items-center gap-1.5"
-                  >
-                    <Send size={13} />
-                  </button>
-                </div>
-              </div>
+              {error}
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Phase Cards */}
-        {filteredPhases.map((phase, pi) => {
-          const isExpanded = expandedPhases.has(phase.id);
-          const phaseSteps = phase.tasks.flatMap((t) => t.steps);
-          const phaseDoneSteps = phaseSteps.filter((s) => s.done).length;
-          const phaseDoneTasks = phase.tasks.filter((t) => t.done).length;
-          const stepPct =
-            phaseSteps.length > 0
-              ? Math.round((phaseDoneSteps / phaseSteps.length) * 100)
-              : 0;
+        {view === "QuarterlyOKR" ? (
+          <OkrView quarters={quarters} onScore={scoreKr} />
+        ) : (
+          <>
+            <ItemList items={visible} onPatch={patch} onDelete={remove} />
+            {view !== "Blocked" && (
+              <AddItem
+                view={view}
+                quarterId={current?.id ?? null}
+                open={adding}
+                setOpen={setAdding}
+                onDone={load}
+                onError={setError}
+              />
+            )}
+            {view === "Blocked" && visible.length === 0 && (
+              <Empty>Nothing is blocked. Mark an item blocked anywhere and it appears here.</Empty>
+            )}
+          </>
+        )}
 
-          return (
-            <motion.div
-              key={phase.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{
-                duration: 0.5,
-                delay: 0.25 + pi * 0.08,
-                ease: [0.32, 0.72, 0, 1],
-              }}
-              className="bg-white border border-[#eee] rounded-xl mb-4 overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.04)]"
+        {view === "ThisWeek" && weeks.length > 0 && (
+          <section className="mt-16">
+            <h2 className="text-[11px] tracking-[0.2em] uppercase text-[#a3a099] mb-1">
+              First 12 weeks
+            </h2>
+            <p className="text-[14px] text-[#8a8780] mb-5">
+              The 90-day execution plan. One objective per week.
+            </p>
+            <div className="divide-y divide-[#ece9e1]">
+              {weeks.map((w) => (
+                <button
+                  key={w.id}
+                  onClick={() => toggleWeek(w)}
+                  className="w-full text-left py-4 flex gap-4 md:gap-6 items-start group"
+                >
+                  <span
+                    className={`shrink-0 mt-[3px] w-[22px] h-[22px] rounded-full border flex items-center justify-center text-[11px] tabular-nums transition-colors ${
+                      w.done
+                        ? "bg-[#C8A45C] border-[#C8A45C] text-white"
+                        : "border-[#d8d4ca] text-[#a3a099] group-hover:border-[#b8b4aa]"
+                    }`}
+                  >
+                    {w.week}
+                  </span>
+                  <span className="min-w-0">
+                    <span className={`block text-[15px] ${w.done ? "text-[#b8b5ad] line-through" : "text-[#1a1a1a]"}`}>
+                      {w.objective}
+                    </span>
+                    <span className="block text-[13px] leading-relaxed text-[#8a8780] mt-1">
+                      {w.deliverable}
+                    </span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+      </main>
+    </div>
+  );
+}
+
+function Stat({ label, value, tone }: { label: string; value: string; tone?: "warn" }) {
+  return (
+    <div>
+      <p className="text-[11px] tracking-[0.16em] uppercase text-[#a3a099] mb-1.5">{label}</p>
+      <p className={`text-[26px] leading-none tabular-nums ${tone === "warn" ? "text-red-700" : "text-[#1a1a1a]"}`}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function Empty({ children }: { children: React.ReactNode }) {
+  return <p className="py-10 text-[15px] text-[#a3a099]">{children}</p>;
+}
+
+function ItemList({
+  items, onPatch, onDelete,
+}: {
+  items: Item[];
+  onPatch: (id: string, body: Partial<Item>) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [open, setOpen] = useState<string | null>(null);
+  if (items.length === 0) return <Empty>Nothing here yet.</Empty>;
+
+  return (
+    <div className="divide-y divide-[#ece9e1]">
+      {items.map((it) => (
+        <div key={it.id} className="py-4">
+          <div className="flex items-start gap-4">
+            {/* The dot stays 18px because a big circle looks clumsy next to the
+                text, but the tappable area around it is a full 44. */}
+            <button
+              onClick={() => onPatch(it.id, { status: it.status === "Done" ? "NotStarted" : "Done" })}
+              aria-label={it.status === "Done" ? "Mark not done" : "Mark done"}
+              className="shrink-0 -m-[13px] p-[13px] flex items-start"
             >
-              {/* Phase header */}
-              <button
-                onClick={() => {
-                  setExpandedPhases((prev) => {
-                    const next = new Set(prev);
-                    if (next.has(phase.id)) next.delete(phase.id);
-                    else next.add(phase.id);
-                    return next;
-                  });
-                }}
-                className="w-full text-left px-5 py-4 hover:bg-[#fefefe] transition-colors"
-              >
-                <div className="flex items-center gap-3 mb-2">
-                  <div
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 border-2"
-                    style={{
-                      background: phase.colorBg,
-                      borderColor: phase.color,
-                      color: phase.color,
-                    }}
-                  >
-                    {phase.number}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold text-[#1a1a1a]">
-                      Phase {phase.number}: {phase.name}
-                    </div>
-                    <div className="text-xs text-[#999]">{phase.dates}</div>
-                  </div>
-                  {isExpanded ? (
-                    <ChevronDown size={16} className="text-[#ccc]" />
-                  ) : (
-                    <ChevronRight size={16} className="text-[#ccc]" />
-                  )}
-                </div>
-                <p className="text-xs text-[#888] mb-2 leading-relaxed">
-                  {phase.goal}
-                </p>
-                <div className="h-1 bg-[#f0f0ef] rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{
-                      width: `${stepPct}%`,
-                      background: phase.color,
-                    }}
-                  />
-                </div>
-                <div className="text-[10px] text-[#bbb] mt-1">
-                  {phaseDoneTasks} of {phase.tasks.length} tasks -- {stepPct}%
-                  of steps done
-                </div>
-              </button>
-
-              {/* Tasks */}
-              <AnimatePresence>
-                {isExpanded && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.25 }}
-                    className="overflow-hidden"
-                  >
-                    {phase.tasks.map((task) => {
-                      const isTaskExpanded = expandedTasks.has(task.id);
-                      const taskDoneSteps = task.steps.filter(
-                        (s) => s.done
-                      ).length;
-
-                      return (
-                        <div
-                          key={task.id}
-                          className="border-t border-[#f0f0ef]"
-                          draggable
-                          onDragStart={() => handleTaskDragStart(task.id)}
-                          onDragOver={(e) =>
-                            handleTaskDragOver(e, task.id, phase.id)
-                          }
-                          onDragEnd={() => handleTaskDragEnd(phase.id)}
-                        >
-                          <div
-                            className={`flex items-start gap-2.5 px-5 py-3 group hover:bg-[#fafaf8] transition-colors ${
-                              dragTaskId === task.id ? "opacity-50" : ""
-                            }`}
-                          >
-                            <div className="pt-0.5 cursor-grab text-[#ddd] opacity-0 group-hover:opacity-100 transition-opacity">
-                              <GripVertical size={14} />
-                            </div>
-
-                            <button
-                              onClick={() =>
-                                updateTask(task.id, { done: !task.done })
-                              }
-                              className={`mt-0.5 w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-all ${
-                                task.done
-                                  ? "border-emerald-500 bg-emerald-500"
-                                  : "border-[#ddd] hover:border-[#bbb]"
-                              }`}
-                            >
-                              {task.done && (
-                                <Check
-                                  size={10}
-                                  className="text-white"
-                                  strokeWidth={3}
-                                />
-                              )}
-                            </button>
-
-                            <div className="flex-1 min-w-0">
-                              <div
-                                contentEditable
-                                suppressContentEditableWarning
-                                className={`text-[13px] leading-relaxed editable-field ${
-                                  task.done
-                                    ? "line-through text-[#bbb]"
-                                    : "text-[#1a1a1a]"
-                                }`}
-                                onBlur={(e) => {
-                                  const newTitle =
-                                    e.currentTarget.textContent?.trim() || "";
-                                  if (newTitle && newTitle !== task.title) {
-                                    updateTask(task.id, { title: newTitle });
-                                  }
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") {
-                                    e.preventDefault();
-                                    e.currentTarget.blur();
-                                  }
-                                }}
-                              >
-                                {task.title}
-                              </div>
-
-                              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                                <span
-                                  contentEditable
-                                  suppressContentEditableWarning
-                                  className="text-[10px] text-[#666] hover:text-[#222] focus:text-[#111] focus:outline-none focus:bg-[#fef9c3] px-1 -mx-1 rounded cursor-text"
-                                  onBlur={(e) => {
-                                    const next = e.currentTarget.textContent?.trim() ?? "";
-                                    if (next && next !== task.dueLabel) {
-                                      updateTask(task.id, { dueLabel: next });
-                                    } else if (!next) {
-                                      e.currentTarget.textContent = task.dueLabel;
-                                    }
-                                  }}
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter") {
-                                      e.preventDefault();
-                                      e.currentTarget.blur();
-                                    }
-                                  }}
-                                  title="Click to edit due date"
-                                >
-                                  {task.dueLabel}
-                                </span>
-
-                                <select
-                                  value={task.category}
-                                  onChange={(e) =>
-                                    updateTask(task.id, {
-                                      category: e.target.value,
-                                    })
-                                  }
-                                  className={`text-[10px] font-medium px-2 py-0.5 rounded-full border-0 cursor-pointer appearance-none pr-4 ${
-                                    CAT_COLORS[task.category]?.bg || "bg-gray-50"
-                                  } ${
-                                    CAT_COLORS[task.category]?.text ||
-                                    "text-gray-600"
-                                  }`}
-                                  title="Change category"
-                                >
-                                  {Object.keys(CAT_COLORS).map((c) => (
-                                    <option key={c} value={c}>{c}</option>
-                                  ))}
-                                </select>
-
-                                <select
-                                  value={task.owner}
-                                  onChange={(e) =>
-                                    updateTask(task.id, {
-                                      owner: e.target.value,
-                                    })
-                                  }
-                                  className={`text-[10px] font-medium px-2 py-0.5 rounded-full border-0 cursor-pointer appearance-none pr-4 ${
-                                    OWNER_COLORS[task.owner]?.bg || "bg-gray-50"
-                                  } ${
-                                    OWNER_COLORS[task.owner]?.text ||
-                                    "text-gray-500"
-                                  }`}
-                                  style={{
-                                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath d='M1 2.5L4 5.5L7 2.5' stroke='%23999' fill='none' stroke-width='1.5'/%3E%3C/svg%3E")`,
-                                    backgroundRepeat: "no-repeat",
-                                    backgroundPosition: "right 4px center",
-                                  }}
-                                >
-                                  {OWNERS.map((o) => (
-                                    <option key={o} value={o}>
-                                      {o}
-                                    </option>
-                                  ))}
-                                </select>
-
-                                {task.steps.length > 0 && (
-                                  <span className="text-[10px] text-[#bbb]">
-                                    {taskDoneSteps}/{task.steps.length} steps
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              {task.steps.length > 0 && (
-                                <button
-                                  onClick={() => {
-                                    setExpandedTasks((prev) => {
-                                      const next = new Set(prev);
-                                      if (next.has(task.id))
-                                        next.delete(task.id);
-                                      else next.add(task.id);
-                                      return next;
-                                    });
-                                  }}
-                                  className="p-1 rounded hover:bg-[#f0f0ef] text-[#bbb] hover:text-[#888] transition-colors"
-                                >
-                                  {isTaskExpanded ? (
-                                    <ChevronDown size={14} />
-                                  ) : (
-                                    <ChevronRight size={14} />
-                                  )}
-                                </button>
-                              )}
-                              <button
-                                onClick={() => deleteTask(task.id)}
-                                className="p-1 rounded hover:bg-red-50 text-[#ddd] hover:text-red-400 transition-colors"
-                              >
-                                <Trash2 size={13} />
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Steps sub-list */}
-                          <AnimatePresence>
-                            {isTaskExpanded && (
-                              <motion.div
-                                initial={{ height: 0, opacity: 0 }}
-                                animate={{ height: "auto", opacity: 1 }}
-                                exit={{ height: 0, opacity: 0 }}
-                                transition={{ duration: 0.2 }}
-                                className="overflow-hidden bg-[#fafaf8]"
-                              >
-                                <div className="pl-16 pr-5 py-1.5">
-                                  {task.steps.map((step) => (
-                                    <div
-                                      key={step.id}
-                                      className="flex items-start gap-2.5 py-2 border-t border-[#eee] first:border-t-0 group/step"
-                                      draggable
-                                      onDragStart={(e) => {
-                                        e.stopPropagation();
-                                        handleStepDragStart(step.id);
-                                      }}
-                                      onDragOver={(e) => {
-                                        e.stopPropagation();
-                                        handleStepDragOver(
-                                          e,
-                                          step.id,
-                                          task.id
-                                        );
-                                      }}
-                                      onDragEnd={(e) => {
-                                        e.stopPropagation();
-                                        handleStepDragEnd(task.id);
-                                      }}
-                                    >
-                                      <div className="pt-0.5 cursor-grab text-[#e5e5e5] opacity-0 group-hover/step:opacity-100 transition-opacity">
-                                        <GripVertical size={12} />
-                                      </div>
-                                      <button
-                                        onClick={() =>
-                                          updateStep(step.id, {
-                                            done: !step.done,
-                                          })
-                                        }
-                                        className={`mt-0.5 w-3.5 h-3.5 rounded border-[1.5px] flex items-center justify-center shrink-0 transition-all ${
-                                          step.done
-                                            ? "border-emerald-500 bg-emerald-500"
-                                            : "border-[#ddd] hover:border-[#bbb]"
-                                        }`}
-                                      >
-                                        {step.done && (
-                                          <Check
-                                            size={8}
-                                            className="text-white"
-                                            strokeWidth={3}
-                                          />
-                                        )}
-                                      </button>
-                                      <div className="flex-1 min-w-0">
-                                        <div
-                                          contentEditable
-                                          suppressContentEditableWarning
-                                          className={`text-xs leading-relaxed editable-field ${
-                                            step.done
-                                              ? "line-through text-[#bbb]"
-                                              : "text-[#555]"
-                                          }`}
-                                          onBlur={(e) => {
-                                            const newTitle =
-                                              e.currentTarget.textContent?.trim() ||
-                                              "";
-                                            if (
-                                              newTitle &&
-                                              newTitle !== step.title
-                                            ) {
-                                              updateStep(step.id, {
-                                                title: newTitle,
-                                              });
-                                            }
-                                          }}
-                                          onKeyDown={(e) => {
-                                            if (e.key === "Enter") {
-                                              e.preventDefault();
-                                              e.currentTarget.blur();
-                                            }
-                                          }}
-                                        >
-                                          {step.title}
-                                        </div>
-                                      </div>
-                                      <select
-                                        value={step.owner}
-                                        onChange={(e) =>
-                                          updateStep(step.id, {
-                                            owner: e.target.value,
-                                          })
-                                        }
-                                        className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full border-0 cursor-pointer appearance-none pr-3 opacity-0 group-hover/step:opacity-100 transition-opacity ${
-                                          OWNER_COLORS[step.owner]?.bg ||
-                                          "bg-gray-50"
-                                        } ${
-                                          OWNER_COLORS[step.owner]?.text ||
-                                          "text-gray-500"
-                                        }`}
-                                        style={{
-                                          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='6' height='6' viewBox='0 0 6 6'%3E%3Cpath d='M0.5 1.5L3 4.5L5.5 1.5' stroke='%23999' fill='none' stroke-width='1'/%3E%3C/svg%3E")`,
-                                          backgroundRepeat: "no-repeat",
-                                          backgroundPosition:
-                                            "right 3px center",
-                                        }}
-                                      >
-                                        {OWNERS.map((o) => (
-                                          <option key={o} value={o}>
-                                            {o}
-                                          </option>
-                                        ))}
-                                      </select>
-                                      <button
-                                        onClick={() => deleteStep(step.id)}
-                                        className="p-0.5 rounded hover:bg-red-50 text-[#e5e5e5] hover:text-red-400 transition-colors opacity-0 group-hover/step:opacity-100"
-                                      >
-                                        <Trash2 size={11} />
-                                      </button>
-                                    </div>
-                                  ))}
-                                  <button
-                                    onClick={() => addStep(task.id)}
-                                    className="flex items-center gap-1.5 text-[11px] text-[#bbb] hover:text-[#888] py-2 transition-colors"
-                                  >
-                                    <Plus size={11} />
-                                    Add step
-                                  </button>
-                                </div>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                        </div>
-                      );
-                    })}
-
-                    <div className="border-t border-[#f0f0ef] px-5 py-2.5">
-                      <button
-                        onClick={() => addTask(phase.id)}
-                        className="flex items-center gap-1.5 text-xs text-[#bbb] hover:text-[#888] transition-colors"
-                      >
-                        <Plus size={13} />
-                        Add task
-                      </button>
-                    </div>
-                  </motion.div>
+              <span
+                className={`block mt-[3px] w-[18px] h-[18px] rounded-full border transition-colors ${
+                  it.status === "Done"
+                    ? "bg-[#C8A45C] border-[#C8A45C]"
+                    : "border-[#d8d4ca] hover:border-[#b8b4aa]"
+                }`}
+              />
+            </button>
+            <button onClick={() => setOpen(open === it.id ? null : it.id)} className="min-w-0 flex-1 text-left">
+              <span className={`block text-[16px] leading-snug ${STATUS_STYLE[it.status]} ${it.status === "Done" ? "" : "text-[#1a1a1a]"}`}>
+                {it.title}
+              </span>
+              <span className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-[#8a8780]">
+                <span className="text-[#4a4740]">{it.owner}</span>
+                <span className="text-[#d8d4ca]">·</span>
+                <span>{it.pillar}</span>
+                {it.priority === "Critical" && (
+                  <>
+                    <span className="text-[#d8d4ca]">·</span>
+                    <span className="text-[#C8A45C]">Critical</span>
+                  </>
                 )}
-              </AnimatePresence>
-            </motion.div>
-          );
-        })}
+                {it.dueDate && (
+                  <>
+                    <span className="text-[#d8d4ca]">·</span>
+                    <span className="tabular-nums">{fmtDate(it.dueDate)}</span>
+                  </>
+                )}
+                {it.status === "Blocked" && (
+                  <>
+                    <span className="text-[#d8d4ca]">·</span>
+                    <span className="text-red-700">Blocked</span>
+                  </>
+                )}
+              </span>
+            </button>
+          </div>
 
-        {/* Category legend */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.6 }}
-          className="flex items-center gap-2 flex-wrap mt-4 mb-8"
-        >
-          <span className="text-xs text-[#999]">Categories:</span>
-          {CATEGORIES.map((cat) => (
-            <span
-              key={cat}
-              className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${CAT_COLORS[cat].bg} ${CAT_COLORS[cat].text}`}
-            >
-              {cat}
-            </span>
-          ))}
-        </motion.div>
-
-        {/* Footer */}
-        <div className="text-center pb-8">
-          <button
-            onClick={fetchData}
-            className="inline-flex items-center gap-2 text-xs text-[#bbb] hover:text-[#888] transition-colors"
-          >
-            <RefreshCw size={12} />
-            {lastSync
-              ? `Last synced ${lastSync.toLocaleTimeString()}`
-              : "Click to refresh from server"}
-          </button>
+          <AnimatePresence>
+            {open === it.id && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
+                className="overflow-hidden"
+              >
+                <div className="pt-5 pl-[34px] pb-1 grid gap-4 sm:grid-cols-2 max-w-[720px]">
+                  <Field label="Owner" value={it.owner} onSave={(v) => onPatch(it.id, { owner: v })} />
+                  <Select label="Pillar" value={it.pillar} options={PILLARS} onSave={(v) => onPatch(it.id, { pillar: v })} />
+                  <Select label="Priority" value={it.priority} options={PRIORITIES} onSave={(v) => onPatch(it.id, { priority: v as Item["priority"] })} />
+                  <Select label="Status" value={it.status} options={STATUSES} onSave={(v) => onPatch(it.id, { status: v as Item["status"] })} />
+                  <Field label="Due date" type="date" value={it.dueDate ? it.dueDate.slice(0, 10) : ""} onSave={(v) => onPatch(it.id, { dueDate: v || null })} />
+                  <Field label="KPI / impact" value={it.kpi} onSave={(v) => onPatch(it.id, { kpi: v })} />
+                  <Field label="Dependency" value={it.dependency} onSave={(v) => onPatch(it.id, { dependency: v })} className="sm:col-span-2" />
+                  <Field label="Notes / evidence" value={it.notes} onSave={(v) => onPatch(it.id, { notes: v })} className="sm:col-span-2" />
+                  <button
+                    onClick={() => onDelete(it.id)}
+                    className="justify-self-start text-[13px] text-[#b0aca3] hover:text-red-700 transition-colors"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
+      ))}
+    </div>
+  );
+}
+
+function Field({
+  label, value, onSave, type = "text", className = "",
+}: {
+  label: string; value: string; onSave: (v: string) => void; type?: string; className?: string;
+}) {
+  const [v, setV] = useState(value);
+  useEffect(() => setV(value), [value]);
+  return (
+    <label className={`block ${className}`}>
+      <span className="block text-[11px] tracking-[0.14em] uppercase text-[#a3a099] mb-1.5">{label}</span>
+      <input
+        type={type}
+        value={v}
+        onChange={(e) => setV(e.target.value)}
+        onBlur={() => v !== value && onSave(v)}
+        onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+        className="w-full min-h-[40px] bg-white rounded-lg px-3 py-2 text-[14px] text-[#1a1a1a] shadow-[0_1px_2px_rgba(0,0,0,0.04)] focus:outline-none focus:ring-2 focus:ring-[#C8A45C]/35"
+      />
+    </label>
+  );
+}
+
+function Select({
+  label, value, options, onSave,
+}: { label: string; value: string; options: string[]; onSave: (v: string) => void }) {
+  return (
+    <label className="block">
+      <span className="block text-[11px] tracking-[0.14em] uppercase text-[#a3a099] mb-1.5">{label}</span>
+      <select
+        value={value}
+        onChange={(e) => onSave(e.target.value)}
+        className="w-full min-h-[40px] bg-white rounded-lg px-3 py-2 text-[14px] text-[#1a1a1a] shadow-[0_1px_2px_rgba(0,0,0,0.04)] focus:outline-none focus:ring-2 focus:ring-[#C8A45C]/35"
+      >
+        {options.map((o) => <option key={o} value={o}>{o}</option>)}
+      </select>
+    </label>
+  );
+}
+
+function AddItem({
+  view, quarterId, open, setOpen, onDone, onError,
+}: {
+  view: View; quarterId: string | null; open: boolean;
+  setOpen: (b: boolean) => void; onDone: () => void; onError: (s: string) => void;
+}) {
+  const [title, setTitle] = useState("");
+  const [owner, setOwner] = useState("");
+  const [due, setDue] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const submit = async () => {
+    setSaving(true);
+    onError("");
+    const r = await fetch("/api/items", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, owner, view, quarterId, dueDate: due || null }),
+    });
+    setSaving(false);
+    if (!r.ok) { onError((await r.json()).error ?? "Could not save."); return; }
+    setTitle(""); setOwner(""); setDue(""); setOpen(false);
+    onDone();
+  };
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="mt-4 min-h-[44px] pr-4 text-[14px] text-[#8a8780] hover:text-[#1a1a1a] transition-colors"
+      >
+        + Add item
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-6 grid gap-3 sm:grid-cols-[1fr_180px_150px_auto] items-end max-w-[820px]">
+      <label className="block">
+        <span className="block text-[11px] tracking-[0.14em] uppercase text-[#a3a099] mb-1.5">Task</span>
+        <input
+          autoFocus value={title} onChange={(e) => setTitle(e.target.value)}
+          placeholder="Clear verb + outcome"
+          className="w-full min-h-[42px] bg-white rounded-lg px-3 py-2 text-[14px] shadow-[0_1px_2px_rgba(0,0,0,0.04)] focus:outline-none focus:ring-2 focus:ring-[#C8A45C]/35"
+        />
+      </label>
+      <label className="block">
+        <span className="block text-[11px] tracking-[0.14em] uppercase text-[#a3a099] mb-1.5">Owner</span>
+        <input
+          value={owner} onChange={(e) => setOwner(e.target.value)} placeholder="Required"
+          className="w-full min-h-[42px] bg-white rounded-lg px-3 py-2 text-[14px] shadow-[0_1px_2px_rgba(0,0,0,0.04)] focus:outline-none focus:ring-2 focus:ring-[#C8A45C]/35"
+        />
+      </label>
+      <label className="block">
+        <span className="block text-[11px] tracking-[0.14em] uppercase text-[#a3a099] mb-1.5">
+          Due{view === "ThisWeek" ? "" : " (optional)"}
+        </span>
+        <input
+          type="date" value={due} onChange={(e) => setDue(e.target.value)}
+          className="w-full min-h-[42px] bg-white rounded-lg px-3 py-2 text-[14px] shadow-[0_1px_2px_rgba(0,0,0,0.04)] focus:outline-none focus:ring-2 focus:ring-[#C8A45C]/35"
+        />
+      </label>
+      <div className="flex gap-2">
+        <button
+          onClick={submit} disabled={saving}
+          className="min-h-[42px] px-5 rounded-lg bg-[#C8A45C] text-white text-[14px] font-medium disabled:opacity-50"
+        >
+          {saving ? "Saving" : "Add"}
+        </button>
+        <button
+          onClick={() => { setOpen(false); onError(""); }}
+          className="min-h-[42px] px-3 text-[14px] text-[#8a8780]"
+        >
+          Cancel
+        </button>
       </div>
+    </div>
+  );
+}
+
+function OkrView({
+  quarters, onScore,
+}: { quarters: Quarter[]; onScore: (id: string, score: string) => void }) {
+  const [openQ, setOpenQ] = useState<string | null>(
+    quarters.find((q) => q.isCurrent)?.id ?? quarters[0]?.id ?? null
+  );
+
+  return (
+    <div className="divide-y divide-[#ece9e1]">
+      {quarters.map((q) => {
+        const expanded = openQ === q.id;
+        const scored = q.objectives.flatMap((o) => o.keyResults).filter((k) => k.score !== null);
+        const avg = scored.length
+          ? (scored.reduce((s, k) => s + (k.score ?? 0), 0) / scored.length).toFixed(2)
+          : null;
+
+        return (
+          <div key={q.id} className="py-5">
+            <button
+              onClick={() => setOpenQ(expanded ? null : q.id)}
+              className="w-full text-left flex items-baseline justify-between gap-4"
+            >
+              <span>
+                <span className="text-[17px] text-[#1a1a1a]">
+                  {q.name}
+                  {q.isCurrent && (
+                    <span className="ml-3 text-[11px] tracking-[0.14em] uppercase text-[#C8A45C]">Current</span>
+                  )}
+                </span>
+                <span className="block text-[13px] text-[#8a8780] mt-1">{q.dates} · {q.revenueTarget}</span>
+              </span>
+              <span className="shrink-0 text-[13px] text-[#a3a099] tabular-nums">
+                {avg ? `scored ${avg}` : `${q.cumulative} cum.`}
+              </span>
+            </button>
+
+            <AnimatePresence>
+              {expanded && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.25, ease: [0.32, 0.72, 0, 1] }}
+                  className="overflow-hidden"
+                >
+                  <div className="pt-6 space-y-8">
+                    {q.objectives.map((o) => (
+                      <div key={o.id}>
+                        <p className="text-[11px] tracking-[0.16em] uppercase text-[#a3a099] mb-2">
+                          {OBJECTIVE_LABEL[o.kind] ?? o.kind}
+                        </p>
+                        <p className="text-[17px] leading-snug text-[#1a1a1a] mb-4 max-w-[62ch]">{o.title}</p>
+                        <div className="space-y-3">
+                          {o.keyResults.map((k) => (
+                            <div key={k.id} className="flex gap-4 items-start">
+                              <span className="shrink-0 w-[34px] pt-[3px] text-[12px] tabular-nums text-[#b0aca3]">
+                                {k.label}
+                              </span>
+                              <span className="flex-1 text-[14px] leading-relaxed text-[#4a4740] max-w-[70ch]">
+                                {k.text}
+                              </span>
+                              <input
+                                type="number" min="0" max="1" step="0.1"
+                                defaultValue={k.score ?? ""}
+                                placeholder="–"
+                                onBlur={(e) => {
+                                  const next = e.target.value;
+                                  if (next !== String(k.score ?? "")) onScore(k.id, next);
+                                }}
+                                aria-label={`Score for ${k.label}`}
+                                className="shrink-0 w-[62px] min-h-[44px] bg-white rounded-lg px-2 text-[13px] text-center tabular-nums shadow-[0_1px_2px_rgba(0,0,0,0.04)] focus:outline-none focus:ring-2 focus:ring-[#C8A45C]/35"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        );
+      })}
     </div>
   );
 }

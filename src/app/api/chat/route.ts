@@ -1,20 +1,18 @@
 import { requirePrisma } from "@/lib/db";
+import { validate, toData, type ItemInput } from "@/lib/items";
 import Anthropic from "@anthropic-ai/sdk";
 
 export const maxDuration = 30;
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-interface ActionParam {
+interface Action {
   type: string;
   params: Record<string, unknown>;
 }
 
 export async function GET() {
-  const prisma = requirePrisma();
-  const logs = await prisma.chatLog.findMany({
+  const logs = await requirePrisma().chatLog.findMany({
     orderBy: { createdAt: "asc" },
     take: 50,
   });
@@ -29,240 +27,131 @@ export async function POST(request: Request) {
     return Response.json({ error: "Message required" }, { status: 400 });
   }
 
-  // Save user message
-  await prisma.chatLog.create({
-    data: { role: "user", content: message },
-  });
+  await prisma.chatLog.create({ data: { role: "user", content: message } });
 
-  // Get current roadmap state
-  const phases = await prisma.phase.findMany({
-    orderBy: { sortOrder: "asc" },
-    include: {
-      tasks: {
-        orderBy: { sortOrder: "asc" },
-        include: { steps: { orderBy: { sortOrder: "asc" } } },
-      },
-    },
-  });
+  const [quarters, items] = await Promise.all([
+    prisma.quarter.findMany({
+      orderBy: { sortOrder: "asc" },
+      include: { objectives: { include: { keyResults: true } } },
+    }),
+    prisma.item.findMany({ orderBy: { sortOrder: "asc" } }),
+  ]);
 
-  const stateJson = JSON.stringify(
-    phases.map((p) => ({
-      id: p.id,
-      number: p.number,
-      name: p.name,
-      tasks: p.tasks.map((t) => ({
-        id: t.id,
-        title: t.title,
-        dueLabel: t.dueLabel,
-        category: t.category,
-        owner: t.owner,
-        done: t.done,
-        steps: t.steps.map((s) => ({
-          id: s.id,
-          title: s.title,
-          owner: s.owner,
-          done: s.done,
+  const state = JSON.stringify(
+    {
+      quarters: quarters.map((q) => ({
+        id: q.id, name: q.name, dates: q.dates, target: q.revenueTarget,
+        current: q.isCurrent,
+        objectives: q.objectives.map((o) => ({
+          id: o.id, kind: o.kind, title: o.title,
+          keyResults: o.keyResults.map((k) => ({ id: k.id, label: k.label, text: k.text, score: k.score })),
         })),
       })),
-    })),
+      items: items.map((i) => ({
+        id: i.id, title: i.title, owner: i.owner, view: i.view, pillar: i.pillar,
+        priority: i.priority, status: i.status, due: i.dueDate, kpi: i.kpi,
+        dependency: i.dependency, quarterId: i.quarterId,
+      })),
+    },
     null,
     1
   );
 
-  const systemPrompt = `You are the HighLife Studios Roadmap assistant. You help manage a 12-month business roadmap for a recording/podcast studio in Washington DC.
+  const systemPrompt = `You manage the HighLife Studios Roadmap — the operating layer for a DC recording and podcast studio, defined by the HighLife Operating System 2026-2027 plan.
 
-CURRENT ROADMAP STATE:
-${stateJson}
+CURRENT STATE:
+${state}
 
-VALID OWNERS: JoJo, Jaco, Both, Unassigned
-VALID CATEGORIES: Legal, Finance, Operations, Marketing, Brand, Pricing, Revenue, Hiring
+RULES FROM THE PLAN — these are not optional:
+- Every item has exactly one owner. An item with no owner is an idea, not a task. Never create one without an owner; if the user does not say who owns it, ask rather than guessing.
+- The Roadmap tracks the company. HighLevel tracks customers. Refuse to add leads, contacts or individual client bookings — say they belong in HighLevel.
+- Three company objectives per quarter, maximum. Do not invent a fourth.
+- Podcast is the cash engine through 2027; 65% of growth attention goes there.
 
-You can perform actions on the roadmap. Return a JSON object with:
-- "reply": a short, human-readable response
-- "actions": an array of action objects
+VALID VALUES
+view: ThisWeek, QuarterlyOKR, RevenueProject, ContentCalendar, Event, SOP, DecisionLog
+pillar: Revenue, Podcast, Music, Media, Merch, Events, Operations, Finance
+priority: Critical, Standard, Backlog
+status: NotStarted, InProgress, Blocked, Done
 
-Available actions:
-- {"type":"add_task","params":{"phaseId":"<id>","title":"...","category":"...","dueLabel":"...","owner":"..."}}
-- {"type":"add_step","params":{"taskId":"<id>","title":"...","owner":"..."}}
-- {"type":"update_task","params":{"id":"<id>","title":"...","done":true/false,"owner":"...","category":"...","dueLabel":"..."}}
-- {"type":"update_step","params":{"id":"<id>","title":"...","done":true/false,"owner":"..."}}
-- {"type":"delete_task","params":{"id":"<id>"}}
-- {"type":"delete_step","params":{"id":"<id>"}}
-- {"type":"mark_done","params":{"type":"task"|"step","id":"<id>","done":true/false}}
-- {"type":"assign_owner","params":{"type":"task"|"step","id":"<id>","owner":"..."}}
+Reply with raw JSON only, no markdown fence:
+{"reply":"<short human answer>","actions":[...]}
 
-If the user asks a question (like "what's left for JoJo?"), return actions: [] and provide the answer in reply.
+Actions:
+- {"type":"add_item","params":{"title":"...","owner":"...","view":"...","pillar":"...","priority":"...","dueDate":"YYYY-MM-DD","kpi":"...","quarterId":"<id>"}}
+- {"type":"update_item","params":{"id":"<id>","title":"...","owner":"...","status":"...","priority":"...","dueDate":"YYYY-MM-DD","dependency":"...","notes":"..."}}
+- {"type":"delete_item","params":{"id":"<id>"}}
+- {"type":"score_kr","params":{"id":"<id>","score":0.0-1.0}}
 
-IMPORTANT: Always respond with valid JSON only. No markdown wrapping. Just the raw JSON object.`;
+For questions ("what is blocked?", "what does JoJo owe this week?") return actions: [] and answer in reply.`;
 
   try {
     const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
+      model: "claude-fable-5",
       max_tokens: 2000,
       system: systemPrompt,
       messages: [{ role: "user", content: message }],
     });
 
-    const text =
-      response.content[0].type === "text" ? response.content[0].text : "";
+    const text = response.content[0].type === "text" ? response.content[0].text : "";
 
-    let parsed: { reply: string; actions: ActionParam[] };
+    let parsed: { reply: string; actions: Action[] };
     try {
-      // Try to extract JSON from the response
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      parsed = jsonMatch
-        ? JSON.parse(jsonMatch[0])
-        : { reply: text, actions: [] };
+      const match = text.match(/\{[\s\S]*\}/);
+      parsed = match ? JSON.parse(match[0]) : { reply: text, actions: [] };
     } catch {
       parsed = { reply: text, actions: [] };
     }
 
-    // Apply actions
-    const applied: string[] = [];
-    for (const action of parsed.actions || []) {
+    const rejected: string[] = [];
+
+    for (const action of parsed.actions ?? []) {
+      const p = action.params as ItemInput & { id?: string; score?: number };
       try {
         switch (action.type) {
-          case "add_task": {
-            const p = action.params;
-            const maxSort = await prisma.task.aggregate({
-              where: { phaseId: p.phaseId as string },
-              _max: { sortOrder: true },
-            });
-            await prisma.task.create({
-              data: {
-                phaseId: p.phaseId as string,
-                title: (p.title as string) || "New Task",
-                dueLabel: (p.dueLabel as string) || "",
-                category: (p.category as string as "Operations") || "Operations",
-                owner: (p.owner as string as "Unassigned") || "Unassigned",
-                done: false,
-                sortOrder: (maxSort._max.sortOrder ?? -1) + 1,
-              },
-            });
-            applied.push(`Added task: ${p.title}`);
+          case "add_item": {
+            // The same validation the UI goes through. The model is told the
+            // owner rule, but told is not enforced.
+            const problem = validate(p);
+            if (problem) { rejected.push(problem); break; }
+            await prisma.item.create({ data: toData(p) as never });
             break;
           }
-          case "add_step": {
-            const p = action.params;
-            const maxSort = await prisma.step.aggregate({
-              where: { taskId: p.taskId as string },
-              _max: { sortOrder: true },
-            });
-            await prisma.step.create({
-              data: {
-                taskId: p.taskId as string,
-                title: (p.title as string) || "New Step",
-                owner: (p.owner as string as "Unassigned") || "Unassigned",
-                done: false,
-                sortOrder: (maxSort._max.sortOrder ?? -1) + 1,
-              },
-            });
-            applied.push(`Added step: ${p.title}`);
+          case "update_item": {
+            if (!p.id) break;
+            const problem = validate(p, { partial: true });
+            if (problem) { rejected.push(problem); break; }
+            await prisma.item.update({ where: { id: p.id }, data: toData(p) as never });
             break;
           }
-          case "update_task": {
-            const p = action.params;
-            const data: Record<string, unknown> = {};
-            if (p.title !== undefined) data.title = p.title;
-            if (p.done !== undefined) data.done = p.done;
-            if (p.owner !== undefined) data.owner = p.owner;
-            if (p.category !== undefined) data.category = p.category;
-            if (p.dueLabel !== undefined) data.dueLabel = p.dueLabel;
-            await prisma.task.update({
-              where: { id: p.id as string },
-              data,
-            });
-            applied.push(`Updated task ${p.id}`);
+          case "delete_item":
+            if (p.id) await prisma.item.delete({ where: { id: p.id } });
             break;
-          }
-          case "update_step": {
-            const p = action.params;
-            const data: Record<string, unknown> = {};
-            if (p.title !== undefined) data.title = p.title;
-            if (p.done !== undefined) data.done = p.done;
-            if (p.owner !== undefined) data.owner = p.owner;
-            await prisma.step.update({
-              where: { id: p.id as string },
-              data,
-            });
-            applied.push(`Updated step ${p.id}`);
-            break;
-          }
-          case "delete_task": {
-            await prisma.task.delete({
-              where: { id: action.params.id as string },
-            });
-            applied.push(`Deleted task ${action.params.id}`);
-            break;
-          }
-          case "delete_step": {
-            await prisma.step.delete({
-              where: { id: action.params.id as string },
-            });
-            applied.push(`Deleted step ${action.params.id}`);
-            break;
-          }
-          case "mark_done": {
-            const p = action.params;
-            if (p.type === "task") {
-              await prisma.task.update({
-                where: { id: p.id as string },
-                data: { done: p.done as boolean },
-              });
-            } else {
-              await prisma.step.update({
-                where: { id: p.id as string },
-                data: { done: p.done as boolean },
-              });
+          case "score_kr": {
+            const n = Number(p.score);
+            if (!p.id || Number.isNaN(n) || n < 0 || n > 1) {
+              rejected.push("A key result score must be between 0.0 and 1.0.");
+              break;
             }
-            applied.push(
-              `Marked ${p.type} ${p.id} as ${p.done ? "done" : "not done"}`
-            );
-            break;
-          }
-          case "assign_owner": {
-            const p = action.params;
-            if (p.type === "task") {
-              await prisma.task.update({
-                where: { id: p.id as string },
-                data: { owner: p.owner as string as "Unassigned" },
-              });
-            } else {
-              await prisma.step.update({
-                where: { id: p.id as string },
-                data: { owner: p.owner as string as "Unassigned" },
-              });
-            }
-            applied.push(
-              `Assigned ${p.type} ${p.id} to ${p.owner}`
-            );
+            await prisma.keyResult.update({ where: { id: p.id }, data: { score: n } });
             break;
           }
         }
-      } catch (err) {
-        applied.push(
-          `Failed: ${action.type} - ${err instanceof Error ? err.message : "unknown error"}`
-        );
+      } catch (e) {
+        rejected.push(`Could not apply ${action.type}.`);
+        console.error("[chat] action failed", action.type, e);
       }
     }
 
-    const assistantContent =
-      parsed.reply +
-      (applied.length > 0 ? `\n\nActions applied: ${applied.join(", ")}` : "");
+    // Say so rather than reporting success for work that was refused.
+    const reply = rejected.length
+      ? `${parsed.reply}\n\nNot applied: ${[...new Set(rejected)].join(" ")}`
+      : parsed.reply;
 
-    // Save assistant message
-    await prisma.chatLog.create({
-      data: { role: "assistant", content: assistantContent },
-    });
-
-    return Response.json({
-      reply: assistantContent,
-      actions: parsed.actions || [],
-      applied,
-    });
-  } catch (err) {
-    const errMsg =
-      err instanceof Error ? err.message : "Claude API error";
-    return Response.json({ error: errMsg }, { status: 500 });
+    await prisma.chatLog.create({ data: { role: "assistant", content: reply } });
+    return Response.json({ reply, applied: (parsed.actions ?? []).length - rejected.length });
+  } catch (e) {
+    console.error("[chat]", e);
+    return Response.json({ error: "Chat failed" }, { status: 500 });
   }
 }

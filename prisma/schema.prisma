@@ -1,3 +1,15 @@
+// HighLife Roadmap — schema derived from the Operating System 2026-2027 document.
+//
+// Section 17 of that document specifies exactly what a Roadmap item must carry,
+// and this model is that list rather than a reinterpretation of it. The previous
+// Phase/Task/Step model described a different plan entirely (Foundation, Revenue
+// Growth, Brand Expansion, Scale) and could not represent quarterly OKRs, pillars
+// or KPI impact at all.
+//
+// The document's own boundary rule applies here: the Roadmap tracks the company,
+// HighLevel tracks customers. There is deliberately no lead, contact or deal
+// model — adding one would turn this into the second CRM the plan warns against.
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -6,63 +18,166 @@ datasource db {
   provider = "postgresql"
 }
 
-enum Category {
-  Legal
-  Finance
-  Operations
-  Marketing
-  Brand
-  Pricing
+// The three company objectives per quarter. Section 13: no more than three.
+enum ObjectiveKind {
+  RevenueEngine    // O1 — how are we growing durable revenue?
+  OperatingSystem  // O2 — can the team deliver the growth reliably?
+  BrandFootprint   // O3 — are Music, Media and Merch getting stronger?
+}
+
+enum Pillar {
   Revenue
-  Hiring
+  Podcast
+  Music
+  Media
+  Merch
+  Events
+  Operations
+  Finance
 }
 
-enum Owner {
-  JoJo
-  Jaco
-  Both
-  Unassigned
+enum Priority {
+  Critical
+  Standard
+  Backlog
 }
 
-model Phase {
-  id        String @id @default(cuid())
-  number    Int    @unique
-  name      String
-  dates     String
-  goal      String
-  color     String
-  colorBg   String
-  sortOrder Int
-  tasks     Task[]
+enum Status {
+  NotStarted
+  InProgress
+  Blocked
+  Done
+}
+
+// The eight views from section 17. An item declares which one it belongs to so
+// the views are a property of the data, not a guess made at render time.
+enum View {
+  ThisWeek
+  QuarterlyOKR
+  RevenueProject
+  ContentCalendar
+  Event
+  SOP
+  DecisionLog
+}
+
+/// A planning period: the Launch Sprint plus five quarters through Q4 2027.
+model Quarter {
+  id            String  @id @default(cuid())
+  key           String  @unique // "launch-sprint", "q4-2026", ...
+  name          String
+  dates         String
+  revenueTarget String // e.g. "$16K"
+  cumulative    String // e.g. "$16K"
+  focus         String // the primary revenue objective for the period
+  sortOrder     Int
+  isCurrent     Boolean @default(false)
+
+  objectives Objective[]
+  items      Item[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
-model Task {
-  id        String   @id @default(cuid())
-  phaseId   String
-  phase     Phase    @relation(fields: [phaseId], references: [id], onDelete: Cascade)
+/// One of the three objectives inside a quarter, with its key results.
+model Objective {
+  id        String        @id @default(cuid())
+  quarterId String
+  quarter   Quarter       @relation(fields: [quarterId], references: [id], onDelete: Cascade)
+  kind      ObjectiveKind
   title     String
-  dueLabel  String   @default("")
-  category  Category @default(Operations)
-  owner     Owner    @default(Unassigned)
-  done      Boolean  @default(false)
-  sortOrder Int      @default(0)
-  steps     Step[]
+  sortOrder Int           @default(0)
+
+  keyResults KeyResult[]
+  items      Item[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
-model Step {
-  id        String  @id @default(cuid())
-  taskId    String
-  task      Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  title     String
-  owner     Owner   @default(Unassigned)
-  done      Boolean @default(false)
-  sortOrder Int     @default(0)
+/// A measurable key result. Scored 0.0-1.0 at quarter end (section 13).
+model KeyResult {
+  id          String    @id @default(cuid())
+  objectiveId String
+  objective   Objective @relation(fields: [objectiveId], references: [id], onDelete: Cascade)
+  label       String // "KR1"
+  text        String
+  score       Float? // null until the quarter is scored
+  sortOrder   Int       @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Everything that gets worked on. One row per commitment, project, SOP,
+/// content slot, event or decision.
+model Item {
+  id     String @id @default(cuid())
+  title  String
+  /// Section 09: "If a task has no owner, it is not a task; it is an idea."
+  /// Enforced at the API boundary, not merely encouraged — hence no default.
+  owner  String
+  pillar Pillar @default(Operations)
+  view   View   @default(ThisWeek)
+
+  quarterId String?
+  quarter   Quarter? @relation(fields: [quarterId], references: [id], onDelete: SetNull)
+
+  objectiveId String?
+  objective   Objective? @relation(fields: [objectiveId], references: [id], onDelete: SetNull)
+
+  priority Priority @default(Standard)
+  status   Status   @default(NotStarted)
+  dueDate  DateTime?
+  /// A real date is required for a weekly commitment; other views may run
+  /// without one, so the column stays nullable and the rule lives in the API.
+  kpi      String   @default("")
+  notes    String   @default("")
+
+  /// Free text rather than a self-relation: the document asks "what must happen
+  /// first or who is blocking it", which is often a person or an outside event,
+  /// not another row in this table.
+  dependency String @default("")
+
+  sortOrder Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([view, status])
+  @@index([quarterId])
+}
+
+/// Section 20's twelve-week plan. Kept separate from Item because a week is a
+/// fixed schedule with one deliverable, not a commitment anyone owns.
+model ExecutionWeek {
+  id          String  @id @default(cuid())
+  week        Int     @unique
+  objective   String
+  deliverable String
+  done        Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Section 15's weekly numbers. One row per Monday.
+model Scoreboard {
+  id           String   @id @default(cuid())
+  weekOf       DateTime @unique
+  cashCollected      Float?
+  podcastRevenue     Float?
+  podcastMrr         Float?
+  musicRevenue       Float?
+  leads              Int?
+  toursBooked        Int?
+  toursShowed        Int?
+  firstSales         Int?
+  recurringConverted Int?
+  podcastRoomHours   Float?
+  editTurnaroundDays Float?
+  notes              String @default("")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -1,630 +1,389 @@
+/**
+ * Seeds the Roadmap from the HighLife Operating System 2026-2027 document.
+ *
+ * Every objective, key result, SOP and execution week below is transcribed from
+ * that document rather than invented. Where the plan is silent — an owner for a
+ * KR-level project, say — the row is not created, because a made-up owner is
+ * worse than an absent one when the whole system runs on accountability.
+ */
+
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import dotenv from "dotenv";
+import { config } from "dotenv";
 
-dotenv.config();
+config({ path: ".env" });
+config({ path: ".env.local", override: true });
 
-const url =
-  process.env.DATABASE_URL ||
-  process.env.PRISMA_DATABASE_URL ||
-  process.env.POSTGRES_URL;
-if (!url) {
-  console.error("No DATABASE_URL found");
-  process.exit(1);
-}
+const url = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+if (!url) throw new Error("DATABASE_URL not set");
+const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) });
 
-const adapter = new PrismaPg({ connectionString: url });
-const prisma = new PrismaClient({ adapter });
+type KR = string;
+type Obj = { kind: "RevenueEngine" | "OperatingSystem" | "BrandFootprint"; title: string; krs: KR[] };
 
-interface RawTask {
-  t: string;
-  d: string;
-  cat: string;
-  s: string[];
-}
-
-interface RawPhase {
-  n: number;
-  name: string;
-  dates: string;
-  c: string;
-  cb: string;
-  goal: string;
-  tasks: RawTask[];
-}
-
-const P: RawPhase[] = [
+const QUARTERS: {
+  key: string; name: string; dates: string; revenueTarget: string;
+  cumulative: string; focus: string; isCurrent?: boolean; objectives: Obj[];
+}[] = [
   {
-    n: 1,
-    name: "Foundation",
-    dates: "Jun - Aug 2026",
-    c: "#F59E0B",
-    cb: "rgba(245,158,11,.13)",
-    goal: "Get legally protected, financially clear, and operationally structured.",
-    tasks: [
+    key: "launch-sprint",
+    name: "Launch Sprint",
+    dates: "Aug 10 – Sep 30, 2026",
+    revenueTarget: "$16K",
+    cumulative: "$16K",
+    focus: "Prove the podcast funnel and close recurring packages.",
+    isCurrent: true,
+    objectives: [
       {
-        t: "Sign operating agreement",
-        d: "Jun 15",
-        cat: "Legal",
-        s: [
-          "Hire a business attorney or use a legal service (LegalZoom, Clerky)",
-          "Define ownership split, decision rights, and profit distribution",
-          "Draft exit provisions and buyout terms",
-          "Both partners review, negotiate, and finalize all terms",
-          "Sign, notarize, and file with DC DCRA",
+        kind: "RevenueEngine",
+        title: "Prove the podcast acquisition-to-recurring funnel",
+        krs: [
+          "Book at least 50 podcast tours during the sprint.",
+          "Achieve at least 65% tour show rate and 25% tour-to-first-sale close rate.",
+          "Close at least 10 new paid podcast customers.",
+          "Exit September with at least $2.5K in podcast MRR or equivalent contracted monthly recurring value.",
+          "Every lead and opportunity lives in HighLevel with stage, owner, source and next action.",
         ],
       },
       {
-        t: "Open dedicated business bank account",
-        d: "Jun 15",
-        cat: "Finance",
-        s: [
-          "Gather required docs: EIN, LLC articles, government ID",
-          "Research and choose a business bank (Mercury, Chase, or Bank of America)",
-          "Open account and set up online access for both JoJo and Jaco",
-          "Transfer any existing business funds from personal accounts",
-          "Open a separate savings account earmarked for quarterly taxes",
+        kind: "OperatingSystem",
+        title: "Install the HighLife operating system",
+        krs: [
+          "Hold >=90% of scheduled Monday, Wednesday and Sunday meetings.",
+          "Move all leadership commitments into the Roadmap with owner, due date and OKR tag.",
+          "Publish the first 7 core SOPs: lead response, tour, proposal/follow-up, client onboarding, podcast session, file handoff/editing, revision/delivery.",
         ],
       },
       {
-        t: "Obtain business insurance (liability + equipment)",
-        d: "Jun 30",
-        cat: "Legal",
-        s: [
-          "Research brokers who specialize in entertainment or media businesses",
-          "Get at least 3 quotes for general liability insurance",
-          "Get quotes for equipment and contents coverage",
-          "Select policy, pay first premium, and receive certificate of insurance",
-          "Store certificate in shared legal documents folder",
-        ],
-      },
-      {
-        t: "Confirm DC business licenses are current",
-        d: "Jun 30",
-        cat: "Legal",
-        s: [
-          "Look up both LLCs on the DC DCRA portal and check standing",
-          "Check license expiration dates for both locations",
-          "Renew any lapsed or expiring licenses",
-          "Set annual calendar reminders for future renewals",
-        ],
-      },
-      {
-        t: "Set up exact monthly revenue tracking",
-        d: "Jun 30",
-        cat: "Finance",
-        s: [
-          "Define revenue categories: recording, podcast, mixing, upsells",
-          "Create or update tracking template in accounting software",
-          "Log actual revenue for the last 3 months to establish a baseline",
-          "Set Friday as the weekly revenue log day - non-negotiable",
-          "Run first complete monthly revenue report for June",
-        ],
-      },
-      {
-        t: "Draft contractor agreements - engineers + outreach team",
-        d: "Jul 15",
-        cat: "Legal",
-        s: [
-          "Confirm all workers qualify as independent contractors under IRS rules",
-          "Draft engineer contractor agreement template with attorney review",
-          "Draft outreach rep agreement template with attorney review",
-          "Collect signatures from all current contractors",
-          "Store signed copies in a shared legal folder accessible to both partners",
-        ],
-      },
-      {
-        t: "Implement engineer SOPs + session notes log",
-        d: "Jul 15",
-        cat: "Operations",
-        s: [
-          "Document the full session flow: setup, recording, client interaction, teardown",
-          "Define minimum quality standards and client communication protocols",
-          "Create session notes template: client info, project goals, feedback, next steps",
-          "Train all engineers on SOPs in a mandatory team meeting",
-          "Set a clear consequence for missing or incomplete session notes",
-          "Review and refine after the first two weeks of use",
-        ],
-      },
-      {
-        t: "Launch client intake form + enforce CRM discipline",
-        d: "Jul 31",
-        cat: "Operations",
-        s: [
-          "Build intake form: project goals, references, budget, preferred dates, contact info",
-          "Embed form in booking confirmation flow so every client fills it out",
-          "Define CRM pipeline stages and required fields for every lead",
-          "Set the rule: every new lead enters CRM within 24 hours of first contact",
-          "Run first weekly CRM review together - JoJo and Jaco",
-        ],
-      },
-      {
-        t: "Build podcast studio SOPs + shot document",
-        d: "Jul 31",
-        cat: "Operations",
-        s: [
-          "Document standard camera positions, angles, and lighting setup",
-          "Create audio check and equipment setup checklist",
-          "Define the standard shot list for every podcast session",
-          "Create a pre-session client brief template",
-          "Create a post-session wrap and delivery handoff checklist",
-          "Test on a real session and update based on what breaks",
-        ],
-      },
-      {
-        t: "Launch monthly P&L review process",
-        d: "Aug 1",
-        cat: "Finance",
-        s: [
-          "Set up P&L template in accounting software with all categories defined",
-          "Establish baseline monthly fixed expenses: rent, software, contractors, utilities",
-          "Schedule a recurring first-week-of-month meeting for P&L review",
-          "Complete and review the first P&L together as partners",
-          "Define the profitability benchmark you are measuring against each month",
-        ],
-      },
-      {
-        t: "Define podcast deliverables + turnaround timeline",
-        d: "Aug 15",
-        cat: "Operations",
-        s: [
-          "List every deliverable included in each package tier",
-          "Set firm turnaround times: audio 48hr, full video 5 business days",
-          "Define revision policy: rounds included, what qualifies as a revision",
-          "Add delivery terms and turnaround timeline to every booking confirmation",
-          "Create a delivery checklist editors must complete before sending to client",
-        ],
-      },
-      {
-        t: "Complete master business document",
-        d: "Aug 31",
-        cat: "Operations",
-        s: [
-          "Compile all SOPs, agreements, pricing, and templates into one shared folder",
-          "Document all revenue streams with current pricing",
-          "Document all team roles, responsibilities, and direct contact info",
-          "Document all tools, vendors, subscriptions, and their costs",
-          "Schedule a joint review session with Jaco",
-          "Set a quarterly calendar reminder to update the document",
+        kind: "BrandFootprint",
+        title: "Restart brand cadence without losing revenue focus",
+        krs: [
+          "Publish/record the HL Podcast weekly for the remainder of the sprint.",
+          "Complete at least 3 podcast commercial creative batches during the partial two-month sprint.",
+          "Run 2 HL Freestyle activations and 2 monthly events or documented equivalent if calendar constraints require one event to shift.",
         ],
       },
     ],
   },
   {
-    n: 2,
-    name: "Revenue Growth",
-    dates: "Sep - Nov 2026",
-    c: "#0D9488",
-    cb: "rgba(13,148,136,.13)",
-    goal: "Increase per-client revenue and build a predictable sales system.",
-    tasks: [
+    key: "q4-2026",
+    name: "Q4 2026",
+    dates: "Oct – Dec 2026",
+    revenueTarget: "$36K",
+    cumulative: "$52K",
+    focus: "Exit December at ~$13K/month with podcast becoming material.",
+    objectives: [
       {
-        t: "Notify existing clients of rate increase (60-day notice)",
-        d: "Aug 15",
-        cat: "Pricing",
-        s: [
-          "Draft a clear, professional rate increase announcement",
-          "Segment the client list - top clients get a personal call, not just an email",
-          "Confirm the new rate effective date is at least 60 days out",
-          "Update all booking platforms with the new rate after the notice period ends",
-          "Prepare honest talking points for clients who push back",
+        kind: "RevenueEngine",
+        title: "Reach $36K quarter revenue and make podcasting material",
+        krs: [
+          "Collect $36K total revenue across October–December.",
+          "Exit December at approximately $13K monthly revenue.",
+          "Reach at least $4K–$4.5K monthly podcast revenue and $4K podcast MRR or close equivalent.",
+          "Sustain >=70% tour show rate and >=25%-30% tour-to-first-sale close rate.",
+          "Reach >=35% first-sale-to-recurring conversion for qualified podcast clients.",
         ],
       },
       {
-        t: "Raise JoJo rate + launch out-of-session mixing service",
-        d: "Sep 1",
-        cat: "Pricing",
-        s: [
-          "Set final hourly engineering rate",
-          "Set per-song mixing price and define exactly what is included",
-          "Define revision policy for mixes: rounds included, what counts as a revision",
-          "Set standard turnaround time: 48-72 hours for out-of-session mixes",
-          "Update website and booking pages with new rates and mixing service info",
-          "Create a separate inquiry or booking flow for mixing-only clients",
+        kind: "OperatingSystem",
+        title: "Make delivery reliable enough to scale",
+        krs: [
+          "90%+ of standard post-production delivered within the published 5-7 business-day expectation.",
+          "Implement standardized briefs, file naming, edit templates and revision tracking.",
+          "Complete a service cost study for every podcast package before expanding paid spend materially.",
         ],
       },
       {
-        t: "Launch podcast studio sales pitch + package deck",
-        d: "Sep 15",
-        cat: "Marketing",
-        s: [
-          "Define 3 package tiers - Basic, Standard, Premium - with full contents and pricing",
-          "Create a visual one-page package menu or PDF deck using brand colors",
-          "Record a sample reel showing studio setup, lighting, and production quality",
-          "Write and rehearse a tight 2-minute verbal sales pitch",
-          "Brief the outreach team on packages, pricing, and common objections",
-          "Publish packages and the sample reel on the website",
-        ],
-      },
-      {
-        t: "Onboard marketing agency for Google/Meta paid ads",
-        d: "Sep 30",
-        cat: "Marketing",
-        s: [
-          "Define monthly ad budget split between recording studio and podcast studio",
-          "Brief agency on ideal client profiles and target audiences for each division",
-          "Provide brand kit, studio photos, and any existing creative assets",
-          "Set up conversion tracking on the website: form fills, calls, bookings",
-          "Define KPIs upfront: cost per lead and monthly lead volume targets",
-          "Schedule a recurring weekly reporting call to review performance",
-        ],
-      },
-      {
-        t: "Launch recording studio upsell packages",
-        d: "Oct 1",
-        cat: "Revenue",
-        s: [
-          "Finalize package names, contents, and prices for all tiers",
-          "Create a one-page package menu for in-studio and digital use",
-          "Train engineers to mention relevant packages naturally during sessions",
-          "Add packages to booking confirmations and after-session follow-up emails",
-          "Track upsell conversion rate every month",
-        ],
-      },
-      {
-        t: "Launch podcast upsell packages",
-        d: "Oct 1",
-        cat: "Revenue",
-        s: [
-          "Define upsell tiers: editing add-on, distribution setup, monthly management retainer",
-          "Set pricing for each upsell and create a retainer proposal template",
-          "Identify the top 5 existing podcast clients who are strong retainer candidates",
-          "Send personalized retainer pitches to those 5 clients with a follow-up call",
-          "Add upsell options visibly to all podcast booking confirmations",
-        ],
-      },
-      {
-        t: "Activate after-session follow-up email sequences",
-        d: "Oct 15",
-        cat: "Marketing",
-        s: [
-          "Write the 3-email sequence: same-day thank you, day-3 check-in, day-7 upsell offer",
-          "Set up automation in your CRM or email tool",
-          "Add personalization: client name, session date, engineer name, project type",
-          "Test the full sequence end-to-end with a real booking before going live",
-          "Monitor open rates and response rates weekly and refine as needed",
-        ],
-      },
-      {
-        t: "Begin testimonial + review collection system",
-        d: "Oct 31",
-        cat: "Marketing",
-        s: [
-          "Identify the top 10 existing clients most likely to give strong testimonials",
-          "Create a Google review request template for post-session sends",
-          "Create a video testimonial request process for standout clients",
-          "Add a review request step to the after-session email sequence",
-          "Build a social proof folder to collect all reviews, testimonials, and screenshots",
-          "Feature top testimonials on the website and in social content monthly",
-        ],
-      },
-      {
-        t: "Build consistent LinkedIn, Google, Instagram presence",
-        d: "Nov 30",
-        cat: "Marketing",
-        s: [
-          "Audit all profiles: photos, bios, links, contact info - update anything stale",
-          "Create a content calendar with a defined posting schedule per platform",
-          "Define 4-5 content pillars: behind the scenes, client features, tips, culture, milestones",
-          "Assign a named person responsible for executing the weekly content calendar",
-          "Optimize the Google Business Profile: fresh photos, weekly posts, Q&A responses",
+        kind: "BrandFootprint",
+        title: "Build visible consistency",
+        krs: [
+          "12-13 HL Podcast episodes in Q4.",
+          "6 podcast commercial batches, 3 HL Freestyles and 3 events.",
+          "Capture at least 6 usable client testimonials/case-study assets.",
         ],
       },
     ],
   },
   {
-    n: 3,
-    name: "Brand Expansion",
-    dates: "Dec 2026 - Feb 2027",
-    c: "#7C3AED",
-    cb: "rgba(124,58,237,.13)",
-    goal: "Make HighLife visible, respected, and culturally relevant.",
-    tasks: [
+    key: "q1-2027",
+    name: "Q1 2027",
+    dates: "Jan – Mar 2027",
+    revenueTarget: "$43K",
+    cumulative: "$95K",
+    focus: "Build retention and recurring podcast book.",
+    objectives: [
       {
-        t: "Launch HighLife LinkedIn company page",
-        d: "Dec 15",
-        cat: "Brand",
-        s: [
-          "Create the page with logo, cover image, location, and company description",
-          "Link JoJo and Jaco personal profiles as admins and employees",
-          "Post a company launch announcement and pin it",
-          "Connect with 50 relevant local professionals in the first 30 days",
-          "Set posting cadence: 3x per week targeting podcast and B2B audience",
+        kind: "RevenueEngine",
+        title: "Collect $43K and deepen recurring podcast revenue",
+        krs: [
+          "Collect $43K total revenue in Q1.",
+          "Exit March at $15K monthly revenue.",
+          "Reach $5K–$6K podcast MRR / contracted recurring value.",
+          "Maintain at least 6 active recurring podcast accounts or equivalent revenue concentration.",
         ],
       },
       {
-        t: "Release professional brand kit",
-        d: "Dec 31",
-        cat: "Brand",
-        s: [
-          "Hire a graphic designer or set up Canva Pro for in-house use",
-          "Finalize primary logo and alternate versions: horizontal, stacked, icon only",
-          "Define brand colors with hex codes and usage rules for each",
-          "Define typography: heading font and body font with usage guidance",
-          "Create social media post and story templates for both studios",
-          "Create email signature templates for JoJo and Jaco",
-          "Distribute brand kit to all team members and contractors - no more off-brand posts",
+        kind: "OperatingSystem",
+        title: "Make client retention a system",
+        krs: [
+          "Measure 30-, 60- and 90-day recurring retention; target >=80% 90-day retention after sample size is meaningful.",
+          "Install monthly client check-ins for higher-tier recurring accounts.",
+          "Reduce avoidable revision and missed-deadline causes month over month.",
         ],
       },
       {
-        t: "Activate JoJo + Jaco co-founder personal brand",
-        d: "Jan 1",
-        cat: "Brand",
-        s: [
-          "Update both LinkedIn profiles: headline, about section, featured posts",
-          "Define each founder's content focus and voice - JoJo vs. Jaco should feel distinct",
-          "Post the first personal brand announcement on LinkedIn and Instagram",
-          "Commit to a weekly posting schedule on personal accounts - minimum 1 post each",
-          "Actively engage with industry conversations and tag HighLife Studios in relevant posts",
-        ],
-      },
-      {
-        t: "Launch Artist of the Month program",
-        d: "Jan 15",
-        cat: "Brand",
-        s: [
-          "Define selection criteria and a simple nomination or selection process",
-          "Design an Artist of the Month graphic template using the brand kit",
-          "Plan the content for each feature: written post, short video clip, session footage",
-          "Launch the first feature and post across all platforms",
-          "Tag the featured artist and encourage them to share - amplifies reach organically",
-        ],
-      },
-      {
-        t: "Build TikTok/IG content system with posting schedule",
-        d: "Jan 31",
-        cat: "Brand",
-        s: [
-          "Define 4-5 content series formats that can be produced consistently",
-          "Assign a named person responsible for capturing content during studio sessions",
-          "Build a 2-week content backlog before going live - do not launch empty",
-          "Set the posting schedule: TikTok 4x per week, IG Reels 3x per week",
-          "Define the editing workflow and tools used for every video",
-          "Track follower growth and leads generated from content monthly",
-        ],
-      },
-      {
-        t: "Activate engineer content plan",
-        d: "Jan 31",
-        cat: "Brand",
-        s: [
-          "Identify which engineers are willing and comfortable appearing on camera",
-          "Define 2-3 content formats for engineers: tips, day-in-the-life, before and after",
-          "Film the first batch of 3-5 engineer videos",
-          "Brief engineers on brand voice and what not to say on camera",
-          "Set a posting schedule for engineer-led content - at least 2 posts per month per engineer",
-        ],
-      },
-      {
-        t: "Begin PR push (Washington Post, local media, podcasts)",
-        d: "Feb 15",
-        cat: "Brand",
-        s: [
-          "Create a press kit: company overview, founder bios, studio photos, notable client work",
-          "Define the key story angle - what makes HighLife genuinely newsworthy in DC",
-          "Build a list of 10 target journalists, editors, and outlets",
-          "Draft and send personalized pitches to each target - not a mass blast",
-          "Identify 5 podcasts where JoJo or Jaco could appear as guests",
-          "Follow up on unanswered pitches once per week - persistence wins press",
-        ],
-      },
-      {
-        t: "Host first HighLife open house / community event",
-        d: "Feb 28",
-        cat: "Brand",
-        s: [
-          "Set the date, format, and maximum guest count",
-          "Build the invite list: existing clients, target clients, community figures, local press",
-          "Send invitations at least 3 weeks in advance - digital and physical",
-          "Plan the event: studio tours, live demo, networking, music",
-          "Assign someone to capture photos and video throughout the event",
-          "Send a follow-up message to every attendee within 48 hours",
-          "Post a full event recap across all platforms within 72 hours",
-        ],
-      },
-      {
-        t: "Launch HighLife Radio or community content series",
-        d: "Feb 28",
-        cat: "Brand",
-        s: [
-          "Define the format, episode length, release frequency, and topic focus",
-          "Book the first 4 guests before recording anything",
-          "Record and edit the pilot episode",
-          "Set up distribution on Spotify, Apple Podcasts, and YouTube",
-          "Promote the launch across all HighLife channels with a coordinated push",
+        kind: "BrandFootprint",
+        title: "Turn HighLife content into authority",
+        krs: [
+          "13 HL Podcast episodes, 6 podcast commercial batches, 3 freestyles and 3 events.",
+          "Build a reusable proof library: client clips, testimonials, behind-the-scenes and final outputs tagged by ICP.",
         ],
       },
     ],
   },
   {
-    n: 4,
-    name: "Scale",
-    dates: "Mar - May 2027",
-    c: "#2563EB",
-    cb: "rgba(37,99,235,.13)",
-    goal: "Move from hustle-based growth to system-based growth.",
-    tasks: [
+    key: "q2-2027",
+    name: "Q2 2027",
+    dates: "Apr – Jun 2027",
+    revenueTarget: "$47K",
+    cumulative: "$142K",
+    focus: "Scale channels beyond paid ads and harden delivery capacity.",
+    objectives: [
       {
-        t: "Launch internship program",
-        d: "Mar 15",
-        cat: "Hiring",
-        s: [
-          "Define internship roles: content creation, admin support, production assistant",
-          "Write job descriptions with clear responsibilities and time commitment",
-          "Post on college job boards: Howard, UDC, American University, Morgan State",
-          "Set up a simple interview and selection process",
-          "Create an intern onboarding doc with weekly tasks and learning goals",
-          "Assign a mentor to each intern - JoJo or Jaco directly",
+        kind: "RevenueEngine",
+        title: "Collect $47K and reach $6K–$7K+ podcast monthly revenue",
+        krs: [
+          "Collect $47K in Q2.",
+          "Exit June at $16K monthly revenue.",
+          "Build at least 8 active recurring podcast clients or equivalent recurring revenue book.",
+          "At least 30% of new podcast revenue comes from referrals, organic, partnerships or events rather than paid acquisition alone.",
         ],
       },
       {
-        t: "Formalize freelance videographer/editor roster",
-        d: "Mar 31",
-        cat: "Hiring",
-        s: [
-          "List all current freelancers and their areas of specialty and availability",
-          "Standardize rates and scope-of-work expectations across the roster",
-          "Have every freelancer on the roster sign a contractor agreement",
-          "Create a shared folder with brand guidelines, shot documents, and delivery specs",
-          "Set up a group communication channel for shoot assignments and availability",
+        kind: "OperatingSystem",
+        title: "Add leverage where workload proves the need",
+        krs: [
+          "Assign or hire a dedicated podcast client-success/producer owner if the trigger is reached.",
+          "Establish an editor bench with backup capacity and consistent templates.",
+          "Have monthly financial reporting with revenue and direct cost by business line.",
         ],
       },
       {
-        t: "Hire or contract dedicated editing team",
-        d: "Mar 31",
-        cat: "Hiring",
-        s: [
-          "Define the editing team structure: lead editor plus support, or small team",
-          "Write and post the job description in relevant creative communities and job boards",
-          "Interview finalists and test each with a sample edit assignment",
-          "Onboard with editing workflow, brand guidelines, and turnaround time standards",
-          "Set up the file delivery system: Frame.io, Dropbox, or Google Drive",
-          "Define performance KPIs: turnaround time, revision rate, client satisfaction score",
+        kind: "BrandFootprint",
+        title: "Strengthen HighLife as an ecosystem",
+        krs: [
+          "Maintain owned-content and event cadence without missing revenue service standards.",
+          "Run at least one merch preorder/collaboration test tied to a proven community moment rather than speculative inventory.",
+        ],
+      },
+    ],
+  },
+  {
+    key: "q3-2027",
+    name: "Q3 2027",
+    dates: "Jul – Sep 2027",
+    revenueTarget: "$52K",
+    cumulative: "$194K",
+    focus: "Push podcast toward $8K-$9K/month; evaluate capacity only if data says so.",
+    objectives: [
+      {
+        kind: "RevenueEngine",
+        title: "Collect $52K and push podcast toward $8K–$9K/month",
+        krs: [
+          "Collect $52K in Q3.",
+          "Exit September at $18K monthly revenue.",
+          "Reach $8K–$9K monthly podcast/media revenue with at least 50% coming from recurring clients.",
+          "Increase average podcast account value through packages and upsells without increasing avoidable churn.",
         ],
       },
       {
-        t: "Lock in first monthly podcast management retainers",
-        d: "Apr 15",
-        cat: "Revenue",
-        s: [
-          "Identify the top 5 existing podcast clients to pitch a management retainer",
-          "Build a retainer proposal document: services included, monthly price, contract length",
-          "Send personalized pitches and schedule follow-up calls with each prospect",
-          "Close the first 2-3 retainer contracts",
-          "Set up recurring billing in your accounting software",
-          "Assign a dedicated point of contact to manage each retainer client relationship",
+        kind: "OperatingSystem",
+        title: "Make a data-based capacity decision",
+        krs: [
+          "Track sellable podcast hours, prime-time utilization, edit load and lead-to-booking wait time every month.",
+          "Only build a second podcast room/business case if utilization and waitlist thresholds have been sustained.",
+          "Ensure no single recurring client represents a dangerous percentage of podcast revenue.",
         ],
       },
       {
-        t: "Pursue first round of grant applications",
-        d: "Apr 30",
-        cat: "Revenue",
-        s: [
-          "Research available grants: DC arts grants, small business grants, minority-owned business grants",
-          "Shortlist 5 grants with the strongest fit and nearest deadlines",
-          "Gather all required documents: financials, EIN, business description, impact statement",
-          "Write a reusable grant narrative that can be adapted across multiple applications",
-          "Submit all applications before their deadlines",
-          "Track application status and follow up wherever permitted",
+        kind: "BrandFootprint",
+        title: "Expand brand partnerships",
+        krs: [
+          "Build 3-5 active referral/brand/community partnerships that create measurable leads or content opportunities.",
+          "Continue 1 event/month; test 2/month only if team capacity and event scorecards justify it.",
+        ],
+      },
+    ],
+  },
+  {
+    key: "q4-2027",
+    name: "Q4 2027",
+    dates: "Oct – Dec 2027",
+    revenueTarget: "$56K",
+    cumulative: "$250K",
+    focus: "Finish the floor goal and exit at $20K-$25K/month stretch run-rate.",
+    objectives: [
+      {
+        kind: "RevenueEngine",
+        title: "Finish $250K cumulative and exit with a stronger run-rate",
+        krs: [
+          "Collect $56K in Q4 and finish at least $250K cumulative since Aug. 10, 2026.",
+          "Exit December at $19K base monthly revenue; stretch toward $20K-$25K.",
+          "Reach $9K-$12K+ monthly podcast/media revenue with at least 60% recurring where feasible.",
+          "Finish 2027 with a clear 2028 budget, revenue target and reinvestment plan.",
         ],
       },
       {
-        t: "Activate affiliate partnerships",
-        d: "Apr 30",
-        cat: "Revenue",
-        s: [
-          "Identify 10 potential partners: gear brands, DAW companies, distribution platforms, music schools",
-          "Draft a partnership proposal with commission structure or cross-promotion terms",
-          "Reach out and close the first 3-5 partnerships",
-          "Set up tracking links or affiliate codes to measure revenue per partner",
-          "Feature partners on the website and tag them in relevant social content",
+        kind: "OperatingSystem",
+        title: "Make the company less founder-dependent",
+        krs: [
+          "Core sales, client-success, studio and delivery SOPs work without Jaco or JoJo manually touching every step.",
+          "Role scorecards exist for every recurring contractor/leader.",
+          "Bookkeeping/CPA reporting cadence and cash reserve policy are active.",
         ],
       },
       {
-        t: "Install in-studio digital menu displays for upsells",
-        d: "Apr 30",
-        cat: "Operations",
-        s: [
-          "Purchase smart TV or commercial display screens for each studio",
-          "Design rotating menu graphics using the brand kit",
-          "Build content: services, packages, pricing, client testimonials, and social proof",
-          "Mount and install displays in the lounge or waiting area of each studio",
-          "Schedule quarterly content refresh so pricing and packages stay current",
-        ],
-      },
-      {
-        t: "Complete Q2 financial review + quarterly tax payment",
-        d: "May 15",
-        cat: "Finance",
-        s: [
-          "Pull the full Q2 P&L from accounting software",
-          "Compare Q2 actuals against the projections set in the business plan",
-          "Calculate the estimated quarterly tax payment owed to IRS and DC OTR",
-          "Make both tax payments on time",
-          "Document the top 3 revenue drivers and biggest expense changes in Q2",
-          "Adjust Q3 and Q4 projections based on Q2 actual results",
-        ],
-      },
-      {
-        t: "Build Year 2 projections and growth plan",
-        d: "May 31",
-        cat: "Finance",
-        s: [
-          "Review Year 1 actual revenue against the original projections - be honest",
-          "Identify the top 3 highest-leverage growth opportunities for Year 2",
-          "Set Year 2 monthly revenue targets broken down by studio division",
-          "Define Year 2 hiring plan and capital investment needs",
-          "Draft Year 2 roadmap with quarterly milestones",
-          "Present Year 2 plan to Jaco, align on priorities, and commit in writing",
+        kind: "BrandFootprint",
+        title: "Decide where the cash engine invests next",
+        krs: [
+          "Choose 2028 priority investments across owned media, music projects, merch, events and physical capacity.",
+          "Publish a new three-year roadmap that converts the five-year cultural vision into specific bets.",
         ],
       },
     ],
   },
 ];
 
+// Section 18. Owners are the document's own suggestions.
+const SOPS: { n: number; title: string; owner: string }[] = [
+  { n: 1, title: "New lead response + qualification", owner: "Marketing/Sales" },
+  { n: 2, title: "Podcast tour experience", owner: "Jaco + Sales" },
+  { n: 3, title: "Proposal + follow-up sequence", owner: "Marketing/Sales" },
+  { n: 4, title: "Recurring package close + autopay", owner: "Jaco + Sales" },
+  { n: 5, title: "Podcast client onboarding", owner: "Podcast Producer / JoJo" },
+  { n: 6, title: "Podcast room setup + preflight", owner: "JoJo / Engineers" },
+  { n: 7, title: "Session execution + client experience", owner: "Engineers" },
+  { n: 8, title: "File naming, backup + delivery handoff", owner: "JoJo / Editors" },
+  { n: 9, title: "Video edit + QA + revision", owner: "Editing lead" },
+  { n: 10, title: "Recurring client success + renewal", owner: "Client Success" },
+  { n: 11, title: "Monthly event playbook", owner: "Leadership / Event owner" },
+  { n: 12, title: "Monday / Wednesday / Sunday meeting process", owner: "Jaco + JoJo" },
+];
+
+// Section 20.
+const WEEKS: { week: number; objective: string; deliverable: string }[] = [
+  { week: 1, objective: "Install the scoreboard", deliverable: "Baseline current revenue, MRR, lead sources, tours, show rate, close rate, room hours and turnaround. Roadmap updated." },
+  { week: 2, objective: "Finalize offer ladder", deliverable: "Cost-check recurring packages; create one-page package sheet and tour close options." },
+  { week: 3, objective: "Fix the tour-to-proposal flow", deliverable: "Tour checklist, discovery questions, same-day proposal template and follow-up automation." },
+  { week: 4, objective: "Launch recurring conversion", deliverable: "Every first-session client receives a relevant recurring option; measure conversion." },
+  { week: 5, objective: "Build ad creative system", deliverable: "Use first commercial batch to create multiple hooks/personas; track campaign-to-revenue attribution." },
+  { week: 6, objective: "Build referral engine", deliverable: "Create referral ask, partner list and intro offer for agencies, professionals and existing clients." },
+  { week: 7, objective: "Run event as acquisition", deliverable: "Monthly event with QR/CRM capture, clear primary KPI and post-event tour offer." },
+  { week: 8, objective: "Harden client success", deliverable: "Kickoff brief, reserved slots, delivery checklist, testimonial/referral moment." },
+  { week: 9, objective: "Coach sales with data", deliverable: "Review lost tours, objections and proposals; improve script/offer instead of just buying more leads." },
+  { week: 10, objective: "Build the proof library", deliverable: "Organize testimonials, best clips, BTS, set photos and use cases by ICP for ads and tours." },
+  { week: 11, objective: "Cost + capacity review", deliverable: "Measure editor hours, margin, room utilization, revision rate and delivery backlog." },
+  { week: 12, objective: "Quarter review + next OKRs", deliverable: "Score KRs, keep/kill experiments, set next-quarter targets and update Roadmap." },
+];
+
+// Section 11 — owned content cadence, as recurring content slots.
+const CONTENT: { title: string; owner: string; kpi: string; notes: string }[] = [
+  { title: "HL Podcast — weekly episode", owner: "JoJo", kpi: "Cadence completed", notes: "Captured Sunday. Owned media, authority and short-form source." },
+  { title: "Podcast commercials — 2x/month batch", owner: "Marketing/Sales", kpi: "Leads by source", notes: "Captured Sunday. Demand generation for the podcast revenue engine." },
+  { title: "HL Freestyle — 1x/month", owner: "JoJo", kpi: "Cadence completed", notes: "Captured Saturday. Music credibility, artist community." },
+  { title: "Monthly event", owner: "Jaco", kpi: "Revenue + leads", notes: "Every event needs one primary goal: revenue, leads, content or community." },
+];
+
+// Section 19 — the risks worth deciding about early, entered as open decisions.
+const DECISIONS: { title: string; owner: string; notes: string; due?: string }[] = [
+  {
+    title: "Rockville: keep, renew, expand, buy or exit?",
+    owner: "Jaco",
+    notes: "EOY 2026 decision gate. Needs trailing 3-month location revenue and contribution margin, unique clients, utilization, lease obligations and a 12-month forecast.",
+    due: "2026-12-15",
+  },
+  {
+    title: "Confirm 15% first-sale commission structure after 60-90 days of data",
+    owner: "Jaco",
+    notes: "Pay on collected net service revenue after payment clears. If recurring packages become the priority, consider a one-time bonus for 3-month commitments rather than lifetime residuals.",
+    due: "2026-11-10",
+  },
+  {
+    title: "Second podcast room — do not decide before capacity proof",
+    owner: "JoJo",
+    notes: "Trigger is prime-time utilization >75% for 8 weeks plus a meaningful waitlist. Guardrail 4: use utilization and waitlist data, not excitement.",
+  },
+];
+
 async function main() {
-  console.log("Clearing existing data...");
-  await prisma.step.deleteMany();
-  await prisma.task.deleteMany();
-  await prisma.phase.deleteMany();
-  await prisma.chatLog.deleteMany();
+  console.log("Clearing previous roadmap structure…");
+  await prisma.item.deleteMany();
+  await prisma.keyResult.deleteMany();
+  await prisma.objective.deleteMany();
+  await prisma.quarter.deleteMany();
+  await prisma.executionWeek.deleteMany();
 
-  console.log("Seeding phases, tasks, and steps...");
+  const quarterIds: Record<string, string> = {};
 
-  let totalTasks = 0;
-  let totalSteps = 0;
-
-  for (const ph of P) {
-    const phase = await prisma.phase.create({
+  for (const [i, q] of QUARTERS.entries()) {
+    const created = await prisma.quarter.create({
       data: {
-        number: ph.n,
-        name: ph.name,
-        dates: ph.dates,
-        goal: ph.goal,
-        color: ph.c,
-        colorBg: ph.cb,
-        sortOrder: ph.n - 1,
+        key: q.key, name: q.name, dates: q.dates,
+        revenueTarget: q.revenueTarget, cumulative: q.cumulative,
+        focus: q.focus, sortOrder: i, isCurrent: q.isCurrent ?? false,
+        objectives: {
+          create: q.objectives.map((o, oi) => ({
+            kind: o.kind, title: o.title, sortOrder: oi,
+            keyResults: {
+              create: o.krs.map((text, ki) => ({
+                label: `KR${ki + 1}`, text, sortOrder: ki,
+              })),
+            },
+          })),
+        },
       },
     });
-
-    for (let ti = 0; ti < ph.tasks.length; ti++) {
-      const t = ph.tasks[ti];
-      const task = await prisma.task.create({
-        data: {
-          phaseId: phase.id,
-          title: t.t,
-          dueLabel: t.d,
-          category: t.cat as "Legal" | "Finance" | "Operations" | "Marketing" | "Brand" | "Pricing" | "Revenue" | "Hiring",
-          owner: "Unassigned",
-          done: false,
-          sortOrder: ti,
-        },
-      });
-      totalTasks++;
-
-      for (let si = 0; si < t.s.length; si++) {
-        await prisma.step.create({
-          data: {
-            taskId: task.id,
-            title: t.s[si],
-            owner: "Unassigned",
-            done: false,
-            sortOrder: si,
-          },
-        });
-        totalSteps++;
-      }
-    }
+    quarterIds[q.key] = created.id;
+    console.log(`  ${q.name}: ${q.objectives.length} objectives, ${q.objectives.reduce((n, o) => n + o.krs.length, 0)} KRs`);
   }
 
-  console.log(
-    `Seeded: 4 phases, ${totalTasks} tasks, ${totalSteps} steps`
-  );
+  await prisma.executionWeek.createMany({
+    data: WEEKS.map((w) => ({ week: w.week, objective: w.objective, deliverable: w.deliverable })),
+  });
+  console.log(`  ${WEEKS.length} execution weeks`);
+
+  const sprint = quarterIds["launch-sprint"];
+
+  await prisma.item.createMany({
+    data: [
+      ...SOPS.map((s) => ({
+        title: s.title, owner: s.owner, view: "SOP" as const,
+        pillar: "Operations" as const, quarterId: sprint,
+        priority: s.n <= 7 ? ("Critical" as const) : ("Standard" as const),
+        sortOrder: s.n,
+        // The first seven are a Launch Sprint key result, not a nice-to-have.
+        notes: s.n <= 7 ? "Launch Sprint O2 KR3 — required before Q4." : "Section 18 priority order.",
+        kpi: "Roadmap commitments completed",
+      })),
+      ...CONTENT.map((c, i) => ({
+        title: c.title, owner: c.owner, view: "ContentCalendar" as const,
+        pillar: "Media" as const, quarterId: sprint,
+        priority: "Standard" as const, sortOrder: i, kpi: c.kpi, notes: c.notes,
+      })),
+      ...DECISIONS.map((d, i) => ({
+        title: d.title, owner: d.owner, view: "DecisionLog" as const,
+        pillar: "Finance" as const, quarterId: sprint,
+        priority: "Critical" as const, sortOrder: i, notes: d.notes,
+        dueDate: d.due ? new Date(d.due) : null,
+      })),
+    ],
+  });
+
+  const counts = await prisma.item.groupBy({ by: ["view"], _count: true });
+  for (const c of counts) console.log(`  ${c.view}: ${c._count} items`);
+  console.log("Seed complete.");
 }
 
 main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
+  .catch((e) => { console.error(e); process.exit(1); })
   .finally(() => prisma.$disconnect());
