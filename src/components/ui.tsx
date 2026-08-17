@@ -164,8 +164,12 @@ export function Field({
 }
 
 export function Choice({
-  label, value, options, onSave,
-}: { label?: string; value: string; options: string[]; onSave: (v: string) => void }) {
+  label, value, options, onSave, labels,
+}: {
+  label?: string; value: string; options: string[]; onSave: (v: string) => void;
+  /** Optional display names, for values that are not what a person calls them. */
+  labels?: Record<string, string>;
+}) {
   return (
     <label className="block">
       {label && (
@@ -176,7 +180,7 @@ export function Choice({
         onChange={(e) => onSave(e.target.value)}
         className={`${INPUT} min-h-[48px] py-2`}
       >
-        {options.map((o) => <option key={o} value={o}>{o}</option>)}
+        {options.map((o) => <option key={o} value={o}>{labels?.[o] ?? o}</option>)}
       </select>
     </label>
   );

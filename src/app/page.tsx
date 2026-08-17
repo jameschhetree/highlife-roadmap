@@ -161,6 +161,16 @@ const OBJECTIVE_LABEL: Record<string, string> = {
   BrandFootprint: "O3 · Brand and cultural footprint",
 };
 
+/** Where an item can be moved to, with the label the tab uses. */
+const MOVABLE: [string, string][] = [
+  ["ThisWeek", "This week"],
+  ["RevenueProject", "Revenue"],
+  ["ContentCalendar", "Content"],
+  ["Event", "Events"],
+  ["SOP", "SOPs"],
+  ["DecisionLog", "Decisions"],
+];
+
 const PILLARS = ["Revenue", "Podcast", "Music", "Media", "Merch", "Events", "Operations", "Finance"];
 const PRIORITIES = ["Critical", "Standard", "Backlog"];
 const STATUSES = ["NotStarted", "InProgress", "Blocked", "Done"];
@@ -732,6 +742,7 @@ function Items({
   ownerOptions: string[];
 }) {
   const [open, setOpen] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<string | null>(null);
   if (items.length === 0) return <Empty>Nothing here yet.</Empty>;
 
   return (
@@ -764,6 +775,7 @@ function Items({
           </div>
 
           {open === it.id && (
+            <>
             <SaveGroup className="pt-6 sm:pl-[34px]">
               <div className="grid gap-5 sm:grid-cols-2">
               <Choice
@@ -771,6 +783,13 @@ function Items({
                 value={it.owner}
                 options={ownerOptions}
                 onSave={(v) => call(`/api/items/${it.id}`, "PATCH", { owner: v })}
+              />
+              <Choice
+                label="Section"
+                value={it.view}
+                options={MOVABLE.map(([v]) => v)}
+                labels={Object.fromEntries(MOVABLE)}
+                onSave={(v) => call(`/api/items/${it.id}`, "PATCH", { view: v })}
               />
               <Choice label="Pillar" value={it.pillar} options={PILLARS} onSave={(v) => call(`/api/items/${it.id}`, "PATCH", { pillar: v })} />
               <Choice label="Priority" value={it.priority} options={PRIORITIES} onSave={(v) => call(`/api/items/${it.id}`, "PATCH", { priority: v })} />
@@ -781,13 +800,36 @@ function Items({
               <Field label="Notes / evidence" multiline value={it.notes} onSave={(v) => call(`/api/items/${it.id}`, "PATCH", { notes: v })} className="sm:col-span-2" />
               </div>
               {it.view === "SOP" && <SopEditor item={it} call={call} />}
-              <button
-                onClick={() => call(`/api/items/${it.id}`, "DELETE")}
-                className="mt-6 ml-5 min-h-[44px] text-[15px] text-[var(--muted)]"
-              >
-                Delete
-              </button>
             </SaveGroup>
+
+            <div className="mt-8 pt-5 border-t border-white/10 sm:pl-[34px]">
+              {confirming === it.id ? (
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="text-[15px] text-[var(--muted)]">Delete “{it.title}” for good?</span>
+                  <button
+                    onClick={() => { setConfirming(null); call(`/api/items/${it.id}`, "DELETE"); }}
+                    className="min-h-[44px] px-5 rounded-full text-[15px] bg-[var(--alert)] text-white"
+                  >
+                    Yes, delete
+                  </button>
+                  <button
+                    onClick={() => setConfirming(null)}
+                    className="min-h-[44px] px-5 rounded-full bezel text-[15px]"
+                    style={BLUR(20)}
+                  >
+                    Keep it
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setConfirming(it.id)}
+                  className="min-h-[44px] text-[15px] text-[var(--muted-3)] hover:text-[var(--alert)]"
+                >
+                  Delete this item
+                </button>
+              )}
+            </div>
+            </>
           )}
         </div>
       ))}
