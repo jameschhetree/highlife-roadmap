@@ -18,6 +18,7 @@ import { gradeAll, type Card } from "@/lib/grade";
 import { Assistant } from "@/components/assistant";
 import { guideFor } from "@/lib/today";
 import { suggest } from "@/lib/priorities";
+import { rollUp, collectedByMonth, monthUnderReview } from "@/lib/rollup";
 
 type View =
   | "ThisWeek" | "Meetings" | "QuarterlyOKR" | "Money" | "RevenueProject"
@@ -36,7 +37,7 @@ type Quarter = {
   cumulative: string; focus: string; isCurrent: boolean; objectives: Objective[];
 };
 type Week = { id: string; week: number; objective: string; deliverable: string; done: boolean; startsOn: string | null };
-type Month = { id: string; label: string; target: number; cumulative: number };
+type Month = { id: string; key: string; label: string; target: number; cumulative: number };
 type Threshold = { id: string; metric: string; green: string; yellow: string; red: string };
 type Test = { id: string; text: string; passed: boolean };
 type Trigger = { id: string; kind: string; signal: string; condition: string; action: string; firing: boolean; notes: string };
@@ -404,7 +405,7 @@ export default function RoadmapPage() {
         )}
 
         {view === "QuarterlyOKR" && <Okrs quarters={quarters} call={call} />}
-        {view === "Money" && <Money months={months} thresholds={thresholds} tests={tests} call={call} />}
+        {view === "Money" && <Money months={months} thresholds={thresholds} tests={tests} meetings={meetings} call={call} />}
         {view === "Meetings" && <MeetingsView meetings={meetings} months={months} thresholds={thresholds} call={call} />}
         {view === "Systems" && <Systems data={systems} call={call} />}
 
@@ -681,29 +682,71 @@ function Okrs({
 }
 
 function Money({
-  months, thresholds, tests, call,
+  months, thresholds, tests, meetings, call,
 }: {
-  months: Month[]; thresholds: Threshold[]; tests: Test[];
+  months: Month[]; thresholds: Threshold[]; tests: Test[]; meetings: Meeting[];
   call: (u: string, m: string, b?: unknown) => Promise<boolean>;
 }) {
+  // Actuals come from the Monday cards. Nothing here is typed twice.
+  const weekly = meetings.filter((m) => m.kind === "MondayBusiness" || m.kind === "MondayMonthly");
+  const actual = collectedByMonth(weekly);
+
+  let cumTarget = 0;
+  let cumActual = 0;
+  let anyActual = false;
+
+  const rows = months.map((m) => {
+    cumTarget += m.target;
+    const got = actual[m.key] ?? null;
+    if (got != null) { cumActual += got; anyActual = true; }
+    const pct = got != null && m.target > 0 ? (got / m.target) * 100 : null;
+    return { ...m, got, pct, cumTarget, cumActual: anyActual ? cumActual : null };
+  });
+
   return (
     <>
       <section>
-        <Eyebrow>The monthly path</Eyebrow>
+        <Eyebrow>Target against actual</Eyebrow>
         <p className="text-[16px] leading-relaxed text-[#888] mb-6">
-          $250K cumulative is the floor. Manage toward $275K so one weak month does not break the goal.
+          $250K cumulative is the floor; manage toward $275K so one weak month does not break the goal.
+          Actuals are the cash collected on your Monday cards — enter it once, it appears here.
         </p>
         <div className="divide-y divide-white/10 border-y border-white/10">
-          {months.map((m) => (
-            <div key={m.id} className="py-4 flex items-baseline justify-between gap-4">
-              <span className="text-[16px]">{m.label}</span>
-              <span className="shrink-0 text-right tabular-nums">
-                <span className="text-[18px]">{money(m.target)}</span>
-                <span className="block text-[14px] text-[#888]">{money(m.cumulative)} cumulative</span>
-              </span>
+          {rows.map((m) => (
+            <div key={m.id} className="py-4">
+              <div className="flex items-baseline justify-between gap-4">
+                <span className="text-[16px]">{m.label}</span>
+                <span className="shrink-0 text-right tabular-nums">
+                  <span className={`text-[18px] ${m.got == null ? "text-[#666]" : ""}`}>
+                    {m.got == null ? "—" : money(m.got)}
+                  </span>
+                  <span className="text-[16px] text-[#666]"> / {money(m.target)}</span>
+                </span>
+              </div>
+              <div className="mt-1.5 flex items-baseline justify-between gap-4 text-[14px]">
+                <span className="text-[#666] tabular-nums">
+                  {money(m.cumTarget)} cumulative target
+                  {m.cumActual != null && <> · {money(m.cumActual)} so far</>}
+                </span>
+                {m.pct != null && (
+                  <span
+                    className={`shrink-0 tabular-nums ${
+                      m.pct >= 100 ? "text-[#4ade80]" : m.pct >= 90 ? "text-[#facc15]" : "text-[#ff6b6b]"
+                    }`}
+                  >
+                    {Math.round(m.pct)}% of target
+                  </span>
+                )}
+              </div>
             </div>
           ))}
         </div>
+        {!anyActual && (
+          <p className="mt-5 text-[15px] leading-relaxed text-[#666]">
+            No actuals yet. Log a Monday meeting and fill in cash collected, and these fill in
+            themselves.
+          </p>
+        )}
       </section>
 
       <section className="mt-16">
@@ -867,7 +910,9 @@ function MeetingsView({
                         </button>
                       </div>
 
-                      {def.scorecard ? (
+                      {def.kind === "MondayMonthly" ? (
+                        <MonthlyRollup meeting={m} weekly={meetings.filter((x) => x.kind === "MondayBusiness")} call={call} />
+                      ) : def.scorecard ? (
                         <>
                           <Cards
                             meeting={m}
@@ -1039,5 +1084,86 @@ function Systems({
         </div>
       </Reveal>
     </div>
+  );
+}
+
+
+/**
+ * The monthly review, assembled from that month's Monday cards.
+ *
+ * Section 12's questions are all "what did we collect" — which the weekly cards
+ * already answer. Asking for them again would produce two versions of the same
+ * month.
+ */
+function MonthlyRollup({
+  meeting, weekly, call,
+}: {
+  meeting: Meeting; weekly: Meeting[];
+  call: (u: string, m: string, b?: unknown) => Promise<boolean>;
+}) {
+  const r = rollUp(meeting.date, weekly as never);
+  const { label } = monthUnderReview(meeting.date);
+
+  const TOTALS: [string, string, boolean][] = [
+    ["cashCollected", "Cash collected", true],
+    ["podcastRevenue", "Podcast revenue", true],
+    ["musicRevenue", "Music revenue", true],
+    ["leads", "Leads", false],
+    ["toursBooked", "Tours booked", false],
+    ["toursShowed", "Tours showed", false],
+  ];
+  const AVERAGES: [string, string, string][] = [
+    ["podcastMrr", "Podcast MRR", "$"],
+    ["tourCloseRate", "Tour close rate", "%"],
+    ["recurringConversion", "Recurring conversion", "%"],
+    ["roomHours", "Room hours per week", ""],
+    ["editTurnaround", "Edit turnaround", " days"],
+    ["roadmapCompletion", "Roadmap completion", "%"],
+  ];
+
+  return (
+    <>
+      <Eyebrow>Reviewing {label}</Eyebrow>
+      <p className="text-[15px] leading-relaxed text-[#888] mb-5">
+        {r.weeks === 0
+          ? "No Monday cards for that month yet, so there is nothing to total. Log the weekly meetings and this fills itself."
+          : `Totalled from ${r.weeks} Monday ${r.weeks === 1 ? "card" : "cards"}. Nothing to re-enter.`}
+      </p>
+
+      {r.weeks > 0 && (
+        <div className="divide-y divide-white/10 border-y border-white/10 mb-7">
+          {TOTALS.map(([k, label2, isMoney]) => (
+            <div key={k} className="py-3 flex items-baseline justify-between gap-4">
+              <span className="text-[16px]">{label2}</span>
+              <span className={`shrink-0 text-[18px] tabular-nums ${r.totals[k] == null ? "text-[#666]" : ""}`}>
+                {r.totals[k] == null ? "—" : isMoney ? `$${r.totals[k]!.toLocaleString()}` : r.totals[k]}
+              </span>
+            </div>
+          ))}
+          {AVERAGES.map(([k, label2, unit]) => (
+            <div key={k} className="py-3 flex items-baseline justify-between gap-4">
+              <span className="text-[16px]">
+                {label2} <span className="text-[14px] text-[#666]">avg</span>
+              </span>
+              <span className={`shrink-0 text-[18px] tabular-nums ${r.averages[k] == null ? "text-[#666]" : ""}`}>
+                {r.averages[k] == null ? "—" : `${unit === "$" ? "$" : ""}${r.averages[k]}${unit === "$" ? "" : unit}`}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <Field
+        label="Next month: one revenue target, one funnel target, one operating target"
+        multiline value={meeting.notes}
+        onSave={(v) => call(`/api/meetings/${meeting.id}`, "PATCH", { notes: v })}
+      />
+      <div className="mt-5">
+        <Field
+          label="Decisions and blockers" multiline value={meeting.decisions}
+          onSave={(v) => call(`/api/meetings/${meeting.id}`, "PATCH", { decisions: v })}
+        />
+      </div>
+    </>
   );
 }
