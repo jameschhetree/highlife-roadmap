@@ -62,7 +62,7 @@ const TABS: { key: View; label: string; blurb: string }[] = [
   { key: "QuarterlyOKR", label: "OKRs", blurb: "Three company objectives per quarter. No more." },
   { key: "Systems", label: "Systems", blurb: "Triggers, the offer ladder and the risk register. The conditions that oblige a decision." },
   { key: "Blocked", label: "Blocked", blurb: "Not a list you add to. Set any item's status to Blocked and it appears here, wherever it lives." },
-  { key: "RevenueProject", label: "Revenue", blurb: "The five channels that bring work in, each with its owner and the numbers that judge it. Ongoing, unlike This week." },
+  { key: "RevenueProject", label: "Revenue", blurb: "Two things: who owns each way work comes in, and the experiments running against them." },
   { key: "ContentCalendar", label: "Content", blurb: "Podcast, commercial batches, freestyle, events." },
   { key: "Event", label: "Events", blurb: "Every event needs one primary KPI." },
   { key: "SOP", label: "SOPs", blurb: "Documented in the order revenue touches the work." },
@@ -163,6 +163,11 @@ export default function RoadmapPage() {
   const [systems, setSystems] = useState<{ triggers: Trigger[]; offers: Offer[]; risks: Risk[] }>(
     { triggers: [], offers: [], risks: [] }
   );
+  const [focus, setFocus] = useState<{
+    focus: { text: string; why: string; owner?: string; section?: string }[];
+    stale: boolean; generatedAt: string | null;
+  }>({ focus: [], stale: true, generatedAt: null });
+  const [thinking, setThinking] = useState(false);
   const [error, setError] = useState("");
   const [adding, setAdding] = useState(false);
 
@@ -181,6 +186,7 @@ export default function RoadmapPage() {
     setMonths(d.months ?? []); setThresholds(d.thresholds ?? []); setTests(d.tests ?? []);
     if (m.ok) setMeetings(await m.json());
     if (sy.ok) setSystems(await sy.json());
+    fetch("/api/focus").then((r) => (r.ok ? r.json() : null)).then((d) => d && setFocus(d)).catch(() => {});
   };
   useEffect(() => { if (ready) load(); }, [ready]);
 
@@ -228,6 +234,15 @@ export default function RoadmapPage() {
   if (!ready) return null;
 
   const guide = guideFor(new Date());
+  const firing = systems.triggers.filter((t) => t.firing).length;
+  const cadenceDone = weeks.filter((w) => w.done).length;
+  const collectedTotal = (() => {
+    const byMonth = collectedByMonth(
+      meetings.filter((m) => m.kind === "MondayBusiness" || m.kind === "MondayMonthly") as never
+    );
+    const vals = Object.values(byMonth).filter((v): v is number => v != null);
+    return vals.length ? vals.reduce((a, b) => a + b, 0) : null;
+  })();
   const blocked = items.filter((i) => i.status === "Blocked").length;
   const overdue = items.filter(
     (i) => i.dueDate && i.status !== "Done" && Date.parse(i.dueDate) < Date.now()
@@ -261,16 +276,34 @@ export default function RoadmapPage() {
             <p className="mt-4 text-[17px] leading-relaxed text-[#a0a0a0]">{current.focus}</p>
             {/* Stacked rows, not a four-across strip. On a phone that strip
                 wrapped mid-label and was the worst of the readability problem. */}
-            <Panel className="mt-8 px-5 md:px-6">
-            <dl className="divide-y divide-white/[0.08]">
-              <Row k={current.name} v={current.dates} />
-              <Row k="Target this period" v={current.revenueTarget} big />
-              <Row k="Cumulative by end of period" v={current.cumulative} big />
-              <Row k="Open this week" v={String(openThisWeek)} big />
-              {blocked > 0 && <Row k="Blocked" v={String(blocked)} big warn />}
-              {unowned > 0 && <Row k="Still need an owner" v={String(unowned)} big warn />}
-            </dl>
-            </Panel>
+            {/* Two across on a phone rather than four, so nothing shrinks. Each
+                tile goes to the tab that explains it. */}
+            <div className="mt-8 grid grid-cols-2 gap-3">
+              <Tile label="Collected so far" value={collectedTotal == null ? "—" : money(collectedTotal)}
+                sub={`of ${current.cumulative} by ${current.name.replace("Launch Sprint", "Sep 30")}`}
+                onClick={() => setView("Money")} />
+              <Tile label="This period" value={current.revenueTarget}
+                sub={current.dates} onClick={() => setView("Money")} />
+              <Tile label="Open this week" value={String(openThisWeek)}
+                sub={overdue > 0 ? `${overdue} past due` : "on time"} warn={overdue > 0}
+                onClick={() => setView("ThisWeek")} />
+              <Tile label="Week" value={currentWeek ? `${currentWeek.week} of 12` : "—"}
+                sub={currentWeek?.objective ?? ""} onClick={() => setView("ThisWeek")} />
+              {unowned > 0 && (
+                <Tile label="Need an owner" value={String(unowned)} sub="an idea, not a task" warn
+                  onClick={() => setView("ThisWeek")} />
+              )}
+              {blocked > 0 && (
+                <Tile label="Blocked" value={String(blocked)} sub="clear on Monday" warn
+                  onClick={() => setView("Blocked")} />
+              )}
+              {firing > 0 && (
+                <Tile label="Triggers firing" value={String(firing)} sub="the action follows the trigger" warn
+                  onClick={() => setView("Systems")} />
+              )}
+              <Tile label="Cadence" value={`${cadenceDone}/${weeks.length}`}
+                sub="execution weeks done" onClick={() => setView("ThisWeek")} />
+            </div>
           </>
         )}
 
@@ -320,27 +353,80 @@ export default function RoadmapPage() {
           );
         })()}
 
-        {priorities.length > 0 && (
+        {view === "ThisWeek" && (
           <Panel className="mt-4 px-5 py-5">
+            <div className="flex items-baseline justify-between gap-4 mb-1">
+              <p className="text-[11px] tracking-[0.18em] uppercase text-[#666]">
+                What this week should be about
+              </p>
+              {focus.generatedAt && !focus.stale && (
+                <span className="shrink-0 text-[12px] text-[#666]">read from the plan</span>
+              )}
+            </div>
+
+            {focus.focus.length === 0 ? (
+              <p className="text-[15px] leading-relaxed text-[#888] mb-4">
+                Nothing worked out yet. This reads your plan against the current state — the quarter's
+                objectives, this week's deliverable, who owns what — and names the three to five things
+                that actually move it.
+              </p>
+            ) : (
+              <>
+                {focus.stale && (
+                  <p className="text-[14px] leading-relaxed text-[#facc15] mb-4">
+                    Owners or statuses have changed since this was worked out. Refresh it.
+                  </p>
+                )}
+                <ol className="space-y-5 mb-5">
+                  {focus.focus.map((f, i) => (
+                    <li key={i}>
+                      <p className="text-[17px] leading-snug">
+                        <span className="text-[#666] tabular-nums mr-2">{i + 1}</span>
+                        {f.text}
+                      </p>
+                      <p className="mt-1.5 text-[14px] leading-relaxed text-[#888]">{f.why}</p>
+                      <p className="mt-1.5 text-[13px] text-[#666]">
+                        {f.owner && (
+                          <span className={f.owner === "Needs an owner" ? "text-[#ff6b6b]" : ""}>{f.owner}</span>
+                        )}
+                        {f.section && <> · plan section {f.section}</>}
+                      </p>
+                    </li>
+                  ))}
+                </ol>
+              </>
+            )}
+
+            <Button
+              onClick={async () => {
+                setThinking(true);
+                const r = await fetch("/api/focus", { method: "POST" });
+                if (r.ok) setFocus(await r.json());
+                else setError((await r.json().catch(() => ({}))).error ?? "Could not work it out.");
+                setThinking(false);
+              }}
+              disabled={thinking}
+            >
+              {thinking ? "Reading the plan…" : focus.focus.length ? "Work it out again" : "Work out this week"}
+            </Button>
+          </Panel>
+        )}
+
+        {view === "ThisWeek" && priorities.length > 0 && (
+          <Panel soft className="mt-4 px-5 py-5">
             <p className="text-[11px] tracking-[0.18em] uppercase text-[#666] mb-3">
-              What this week should be about
+              Housekeeping
             </p>
-            <ol className="space-y-4">
+            <ul className="space-y-3">
               {priorities.map((s, i) => (
                 <li key={i}>
-                  <button
-                    onClick={() => s.goTo && setView(s.goTo as View)}
-                    className="text-left w-full min-h-[44px]"
-                  >
-                    <span className="block text-[17px] leading-snug">
-                      <span className="text-[#666] tabular-nums mr-2">{i + 1}</span>
-                      {s.text}
-                    </span>
-                    <span className="block mt-1 text-[14px] leading-relaxed text-[#666]">{s.why}</span>
+                  <button onClick={() => s.goTo && setView(s.goTo as View)} className="text-left w-full min-h-[44px]">
+                    <span className="block text-[16px] leading-snug">{s.text}</span>
+                    <span className="block mt-1 text-[13px] leading-relaxed text-[#666]">{s.why}</span>
                   </button>
                 </li>
               ))}
-            </ol>
+            </ul>
           </Panel>
         )}
 
@@ -428,6 +514,18 @@ export default function RoadmapPage() {
 
         {!["QuarterlyOKR", "Money", "Meetings", "Systems"].includes(view) && (
           <>
+            {view === "RevenueProject" && (
+              <div className="mb-8">
+                <Eyebrow>Who owns what</Eyebrow>
+                <p className="text-[16px] leading-relaxed text-[#888]">
+                  You asked whether this is a responsibility tab. For the five rows below, yes — they are
+                  the channels from section 07, each permanently owned and judged on its own numbers.
+                  They are not tasks and they never get ticked off. Anything you add here is different:
+                  an offer test, a campaign, a pricing change — work with an end.
+                </p>
+              </div>
+            )}
+
             {visible.length === 0 && view === "Blocked" ? (
               <Empty>
                 Nothing is blocked, which is what you want. This tab fills itself: open any item
@@ -492,6 +590,20 @@ export default function RoadmapPage() {
 
       <Assistant onChanged={load} />
     </div>
+  );
+}
+
+function Tile({
+  label, value, sub, warn, onClick,
+}: { label: string; value: string; sub?: string; warn?: boolean; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="text-left">
+      <Panel className="h-full px-4 py-4 hover:bg-white/[0.09] transition-colors">
+        <p className="text-[11px] tracking-[0.16em] uppercase text-[#666] mb-2">{label}</p>
+        <p className={`text-[28px] leading-none tabular-nums ${warn ? "text-[#ff6b6b]" : ""}`}>{value}</p>
+        {sub && <p className="mt-2 text-[13px] leading-snug text-[#888]">{sub}</p>}
+      </Panel>
+    </button>
   );
 }
 

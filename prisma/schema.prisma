@@ -338,6 +338,22 @@ model Risk {
   updatedAt DateTime @updatedAt
 }
 
+/// An inferred answer to "what should this week be about", kept so it is not
+/// recomputed on every page load.
+///
+/// The deterministic checks (unowned, blocked, overdue) are hygiene: useful, but
+/// Jaco correctly said they are not the plan. This holds a reading of the plan
+/// against the current state — which quarter objective this week serves, what the
+/// execution week asks for, who now owns what. It is regenerated when he asks or
+/// when the state it was based on has moved.
+model WeeklyFocus {
+  id        String   @id @default(cuid())
+  /// Fingerprint of the state it was generated from, so a stale one is visible.
+  basis     String
+  body      String   // JSON array of { text, why, owner, section }
+  createdAt DateTime @default(now())
+}
+
 model ChatLog {
   id        String   @id @default(cuid())
   role      String
