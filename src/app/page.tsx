@@ -202,6 +202,7 @@ export default function RoadmapPage() {
   }>({ focus: [], stale: true, generatedAt: null });
   const [thinking, setThinking] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
+  const [showWeeks, setShowWeeks] = useState(false);
   const [people, setPeople] = useState<Person[]>([]);
   const [error, setError] = useState("");
   const [adding, setAdding] = useState(false);
@@ -322,191 +323,14 @@ export default function RoadmapPage() {
         />
       )}
 
-      <header className="px-5 md:px-10 pt-6 lg:pt-14 pb-10 max-w-[900px] mx-auto">
-        <button
-          onClick={() => setNavOpen(true)}
-          style={BLUR(20)}
-          className="lg:hidden mb-6 min-h-[46px] px-5 rounded-full bezel text-[15px]"
-        >
-          Menu
-        </button>
-        <Tag>HighLife Operating System</Tag>
-        <h1 className="text-[38px] md:text-[52px] leading-[1.02] font-semibold tracking-[-0.03em]">
-          Roadmap
-        </h1>
-
-        {current && (
-          <>
-            <p className="mt-4 text-[17px] leading-relaxed text-[var(--muted)]">{current.focus}</p>
-            {/* Stacked rows, not a four-across strip. On a phone that strip
-                wrapped mid-label and was the worst of the readability problem. */}
-            {/* Two across on a phone rather than four, so nothing shrinks. Each
-                tile goes to the tab that explains it. */}
-            <div className="mt-8 grid grid-cols-2 gap-3">
-              <Tile label="Collected so far" value={collectedTotal == null ? "—" : money(collectedTotal)}
-                sub={`of ${current.cumulative} by ${current.name.replace("Launch Sprint", "Sep 30")}`}
-                onClick={() => setView("Money")} />
-              <Tile label="This period" value={current.revenueTarget}
-                sub={current.dates} onClick={() => setView("Money")} />
-              <Tile label="Open this week" value={String(openThisWeek)}
-                sub={overdue > 0 ? `${overdue} past due` : "on time"} warn={overdue > 0}
-                onClick={() => setView("ThisWeek")} />
-              <Tile label="Week" value={currentWeek ? `${currentWeek.week} of 12` : "—"}
-                sub={currentWeek?.objective ?? ""} onClick={() => setView("ThisWeek")} />
-              {unowned > 0 && (
-                <Tile label="Need an owner" value={String(unowned)} sub="an idea, not a task" warn
-                  onClick={() => setView("ThisWeek")} />
-              )}
-              {blocked > 0 && (
-                <Tile label="Blocked" value={String(blocked)} sub="clear on Monday" warn
-                  onClick={() => setView("Blocked")} />
-              )}
-              {firing > 0 && (
-                <Tile label="Triggers firing" value={String(firing)} sub="the action follows the trigger" warn
-                  onClick={() => setView("Systems")} />
-              )}
-              <Tile label="Cadence" value={`${cadenceDone}/${weeks.length}`}
-                sub="execution weeks done" onClick={() => setView("ThisWeek")} />
-            </div>
-          </>
-        )}
-
-        {/* What the plan says to do today, so nobody has to work out which part
-            of a 38-page document applies on a Wednesday. */}
-        <Panel className="mt-8 px-5 py-5">
-          <p className="text-[11px] tracking-[0.18em] uppercase text-[var(--muted-3)] mb-2">
-            {guide.weekday}
-          </p>
-          <p className="text-[19px] leading-snug mb-2">{guide.headline}</p>
-          <p className="text-[15px] leading-relaxed text-[var(--muted)]">{guide.detail}</p>
-          {guide.goTo && (
-            <div className="mt-5">
-              <Button arrow onClick={() => setView(guide.goTo as View)}>{guide.goToLabel}</Button>
-            </div>
-          )}
-        </Panel>
-
-        {view === "ThisWeek" && (() => {
-          const open = items.filter((i) => i.view === "ThisWeek" && i.status !== "Done");
-          const named = [...new Set(open.map((i) => i.owner))].filter((o) => o !== "Unassigned");
-          if (named.length === 0) return null;
-          return (
-            <Panel className="mt-4 px-5 py-5">
-              <p className="text-[11px] tracking-[0.18em] uppercase text-[var(--muted-3)] mb-1">
-                Commitments per owner
-              </p>
-              <p className="text-[14px] leading-relaxed text-[var(--muted-3)] mb-4">
-                The plan gives each owner three to five for the week. Not three to five between you.
-              </p>
-              <dl className="divide-y divide-white/[0.08]">
-                {named.map((o) => {
-                  const n = open.filter((i) => i.owner === o).length;
-                  const state = n > 5 ? "too many" : n < 3 ? "light" : null;
-                  return (
-                    <div key={o} className="flex items-baseline justify-between gap-4 py-3">
-                      <dt className="text-[16px]">{o}</dt>
-                      <dd className="shrink-0 text-right">
-                        <span className={`text-[20px] tabular-nums ${n > 5 ? "text-[var(--alert)]" : ""}`}>{n}</span>
-                        {state && <span className="ml-2 text-[14px] text-[var(--muted)]">{state}</span>}
-                      </dd>
-                    </div>
-                  );
-                })}
-              </dl>
-            </Panel>
-          );
-        })()}
-
-        {view === "ThisWeek" && (
-          <Panel className="mt-4 px-5 py-5">
-            <div className="flex items-baseline justify-between gap-4 mb-1">
-              <p className="text-[11px] tracking-[0.18em] uppercase text-[var(--muted-3)]">
-                What this week should be about
-              </p>
-              {focus.generatedAt && !focus.stale && (
-                <span className="shrink-0 text-[12px] text-[var(--muted-3)]">read from the plan</span>
-              )}
-            </div>
-
-            {focus.focus.length === 0 ? (
-              <p className="text-[15px] leading-relaxed text-[var(--muted)] mb-4">
-                Nothing worked out yet. This reads your plan against the current state — the quarter's
-                objectives, this week's deliverable, who owns what — and names the three to five things
-                that actually move it.
-              </p>
-            ) : (
-              <>
-                {focus.stale && (
-                  <p className="text-[14px] leading-relaxed text-[var(--warn)] mb-4">
-                    Owners or statuses have changed since this was worked out. Refresh it.
-                  </p>
-                )}
-                <ol className="space-y-5 mb-5">
-                  {focus.focus.map((f, i) => (
-                    <li key={i}>
-                      <p className="text-[17px] leading-snug">
-                        <span className="text-[var(--muted-3)] tabular-nums mr-2">{i + 1}</span>
-                        {f.text}
-                      </p>
-                      <p className="mt-1.5 text-[14px] leading-relaxed text-[var(--muted)]">{f.why}</p>
-                      <p className="mt-1.5 text-[13px] text-[var(--muted-3)]">
-                        {f.owner && (
-                          <span className={f.owner === "Needs an owner" ? "text-[var(--alert)]" : ""}>{f.owner}</span>
-                        )}
-                        {f.section && <> · plan section {f.section}</>}
-                      </p>
-                    </li>
-                  ))}
-                </ol>
-              </>
-            )}
-
-            <Button
-              onClick={async () => {
-                setThinking(true);
-                const r = await fetch("/api/focus", { method: "POST" });
-                if (r.ok) setFocus(await r.json());
-                else setError((await r.json().catch(() => ({}))).error ?? "Could not work it out.");
-                setThinking(false);
-              }}
-              disabled={thinking}
-            >
-              {thinking ? "Reading the plan…" : focus.focus.length ? "Work it out again" : "Work out this week"}
-            </Button>
-          </Panel>
-        )}
-
-        {view === "ThisWeek" && priorities.length > 0 && (
-          <Panel soft className="mt-4 px-5 py-5">
-            <p className="text-[11px] tracking-[0.18em] uppercase text-[var(--muted-3)] mb-3">
-              Housekeeping
-            </p>
-            <ul className="space-y-3">
-              {priorities.map((s, i) => (
-                <li key={i}>
-                  <button onClick={() => s.goTo && setView(s.goTo as View)} className="text-left w-full min-h-[44px]">
-                    <span className="block text-[16px] leading-snug">{s.text}</span>
-                    <span className="block mt-1 text-[13px] leading-relaxed text-[var(--muted-3)]">{s.why}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </Panel>
-        )}
-
-
-      </header>
-
-      {/* Left rail, following the HighLevel layout Jaco pointed at: workspace at
-          the top, icon-and-label rows, the current one picked out. Becomes a
-          bottom sheet under 1024px, because a 248px rail on a phone leaves
-          nothing for the content. */}
+      {/* Left rail, following the HighLevel layout Jaco pointed at. Under
+          1024px it goes off-canvas behind the Menu button. */}
       <aside
         className={`fixed z-40 lg:z-30 inset-y-0 left-0 w-[248px] shrink-0 overflow-y-auto no-scrollbar
           border-r border-white/10 bg-[var(--surface)] transition-transform duration-300
           ${navOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`}
       >
-        <div className="px-4 pt-5 pb-4">
+        <div className="px-4 pt-5 pb-8">
           <p className="text-[11px] tracking-[0.2em] uppercase text-[var(--muted-3)] mb-3 px-2">
             HighLife
           </p>
@@ -520,7 +344,7 @@ export default function RoadmapPage() {
           <nav className="space-y-0.5">
             {TABS.filter((t) => t.key !== "Blocked" || blocked > 0).map((t) => {
               const n = t.key === "Blocked" ? blocked
-                : t.key === "Team" ? people.filter((p) => p.active).length
+                : t.key === "Team" ? people.filter((x) => x.active).length
                 : ["Money", "Meetings", "QuarterlyOKR"].includes(t.key) ? 0
                 : byOwner(items.filter((i) => i.view === t.key)).length;
               const active = view === t.key;
@@ -538,15 +362,13 @@ export default function RoadmapPage() {
                 >
                   <Icon className={`w-5 h-5 shrink-0 ${active ? "" : "opacity-70"}`} />
                   <span className="flex-1 text-left">{t.label}</span>
-                  {n > 0 && (
-                    <span className="text-[13px] tabular-nums text-[var(--muted-3)]">{n}</span>
-                  )}
+                  {n > 0 && <span className="text-[13px] tabular-nums text-[var(--muted-3)]">{n}</span>}
                 </button>
               );
             })}
           </nav>
 
-          <div className="mt-6 pt-5 border-t border-white/10 space-y-0.5">
+          <div className="mt-6 pt-5 border-t border-white/10">
             <Link
               href="/plan"
               className="w-full min-h-[46px] px-3 rounded-xl flex items-center gap-3 text-[15px] text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--text)]/[0.05]"
@@ -554,7 +376,7 @@ export default function RoadmapPage() {
               <IconPlan className="w-5 h-5 shrink-0 opacity-70" />
               <span>Read the plan</span>
             </Link>
-            <div className="px-3 pt-3 space-y-3">
+            <div className="px-3 pt-4 space-y-3">
               <ThemeToggle />
               <select
                 value={who}
@@ -569,11 +391,41 @@ export default function RoadmapPage() {
         </div>
       </aside>
 
-      <main className="max-w-[900px] mx-auto px-5 md:px-10 pb-32">
-        <p className="text-[16px] leading-relaxed text-[var(--muted)] mb-7">
+      <header className="px-5 md:px-10 pt-6 lg:pt-10 pb-6 max-w-[1100px] mx-auto">
+        <button
+          onClick={() => setNavOpen(true)}
+          style={BLUR(20)}
+          className="lg:hidden mb-6 min-h-[46px] px-5 rounded-full bezel text-[15px]"
+        >
+          Menu
+        </button>
+
+        {/* The page names itself. "Roadmap" on every tab told you nothing about
+            where you were. */}
+        <div className="flex items-baseline justify-between gap-4 flex-wrap">
+          <h1 className="text-[30px] md:text-[36px] leading-[1.05] font-semibold tracking-[-0.025em]">
+            {TABS.find((t) => t.key === view)?.label}
+          </h1>
+          {current && view === "ThisWeek" && (
+            <p className="text-[15px] text-[var(--muted)] tabular-nums">
+              {currentWeek ? `Week ${currentWeek.week} of 12` : current.name} · {current.dates}
+            </p>
+          )}
+        </div>
+        <p className="mt-2 text-[16px] leading-relaxed text-[var(--muted)] max-w-[70ch]">
           {TABS.find((t) => t.key === view)?.blurb}
           {who !== "Everyone" && <span className="text-[var(--text)]"> Showing {who} only.</span>}
         </p>
+
+        {error && (
+          <div className="mt-5 px-4 py-3.5 rounded-xl text-[16px] leading-relaxed bezel" style={BLUR(20)}>
+            {error}
+          </div>
+        )}
+      </header>
+
+      <main className="max-w-[1100px] mx-auto px-5 md:px-10 pb-32">
+
 
         {error && (
           <div className="mb-6 px-4 py-3.5 rounded-xl text-[16px] leading-relaxed glass">
@@ -587,21 +439,167 @@ export default function RoadmapPage() {
         {view === "Systems" && <Systems data={systems} call={call} />}
         {view === "Team" && <Team people={people} items={items} call={call} onDone={load} />}
 
-        {view === "ThisWeek" && currentWeek && (
-          <Panel className="mb-8 px-5 py-5">
-            <p className="text-[11px] tracking-[0.18em] uppercase text-[var(--muted-3)] mb-2">
-              Week {currentWeek.week} of 12
-            </p>
-            <p className="text-[19px] leading-snug mb-2">{currentWeek.objective}</p>
-            <p className="text-[15px] leading-relaxed text-[var(--muted)]">{currentWeek.deliverable}</p>
-            {!items.some((i) => i.weekNumber === currentWeek.week) && (
-              <div className="mt-5">
-                <Button kind="solid" arrow onClick={() => call(`/api/weeks/${currentWeek.id}/load`, "POST")}>
-                  Pull this week in
+        {/* This week is the dashboard. Two columns on a wide screen so it reads
+            at a glance instead of scrolling for a minute: what to do on the
+            left, where you stand on the right. */}
+        {view === "ThisWeek" && (
+          <div className="grid gap-5 lg:grid-cols-[1.3fr_1fr] items-start mb-10">
+            <div className="space-y-5">
+              <Panel className="px-5 py-5">
+                <p className="text-[11px] tracking-[0.18em] uppercase text-[var(--muted-3)] mb-2">
+                  {guide.weekday}
+                </p>
+                <p className="text-[19px] leading-snug mb-2">{guide.headline}</p>
+                <p className="text-[15px] leading-relaxed text-[var(--muted)]">{guide.detail}</p>
+                {guide.goTo && (
+                  <div className="mt-5">
+                    <Button arrow onClick={() => setView(guide.goTo as View)}>{guide.goToLabel}</Button>
+                  </div>
+                )}
+              </Panel>
+
+              {currentWeek && (
+                <Panel className="px-5 py-5">
+                  <p className="text-[11px] tracking-[0.18em] uppercase text-[var(--muted-3)] mb-2">
+                    Week {currentWeek.week} of 12 · {currentWeek.objective}
+                  </p>
+                  <p className="text-[15px] leading-relaxed text-[var(--muted)]">{currentWeek.deliverable}</p>
+                  {!items.some((i) => i.weekNumber === currentWeek.week) && (
+                    <div className="mt-5">
+                      <Button kind="solid" arrow onClick={() => call(`/api/weeks/${currentWeek.id}/load`, "POST")}>
+                        Pull this week in
+                      </Button>
+                    </div>
+                  )}
+                </Panel>
+              )}
+
+              <Panel className="px-5 py-5">
+                <div className="flex items-baseline justify-between gap-4 mb-2">
+                  <p className="text-[11px] tracking-[0.18em] uppercase text-[var(--muted-3)]">
+                    What this week should be about
+                  </p>
+                  {focus.generatedAt && !focus.stale && (
+                    <span className="shrink-0 text-[12px] text-[var(--muted-3)]">from the plan</span>
+                  )}
+                </div>
+                {focus.focus.length === 0 ? (
+                  <p className="text-[15px] leading-relaxed text-[var(--muted)] mb-4">
+                    Reads the plan against where you actually are and names the three to five things
+                    that move it.
+                  </p>
+                ) : (
+                  <>
+                    {focus.stale && (
+                      <p className="text-[14px] leading-relaxed text-[var(--warn)] mb-3">
+                        Owners or statuses have changed since this was worked out.
+                      </p>
+                    )}
+                    <ol className="space-y-3.5 mb-5">
+                      {focus.focus.map((f, i) => (
+                        <li key={i}>
+                          <p className="text-[16px] leading-snug">
+                            <span className="text-[var(--muted-3)] tabular-nums mr-2">{i + 1}</span>
+                            {f.text}
+                          </p>
+                          <p className="mt-1 text-[13px] text-[var(--muted-3)]">
+                            {f.owner && (
+                              <span className={f.owner === "Needs an owner" ? "text-[var(--alert)]" : ""}>
+                                {f.owner}
+                              </span>
+                            )}
+                            {f.section && <> · section {f.section}</>}
+                          </p>
+                        </li>
+                      ))}
+                    </ol>
+                  </>
+                )}
+                <Button
+                  onClick={async () => {
+                    setThinking(true);
+                    const r = await fetch("/api/focus", { method: "POST" });
+                    if (r.ok) setFocus(await r.json());
+                    else setError((await r.json().catch(() => ({}))).error ?? "Could not work it out.");
+                    setThinking(false);
+                  }}
+                  disabled={thinking}
+                >
+                  {thinking ? "Reading the plan…" : focus.focus.length ? "Work it out again" : "Work out this week"}
                 </Button>
+              </Panel>
+            </div>
+
+            <div className="space-y-5">
+              <div className="grid grid-cols-2 gap-3">
+                <Tile label="Collected" value={collectedTotal == null ? "—" : money(collectedTotal)}
+                  sub={current ? `of ${current.cumulative} by Sep 30` : ""} onClick={() => setView("Money")} />
+                <Tile label="Open" value={String(openThisWeek)}
+                  sub={overdue > 0 ? `${overdue} past due` : "on time"} warn={overdue > 0}
+                  onClick={() => setView("ThisWeek")} />
+                <Tile label="Cadence" value={`${cadenceDone}/${weeks.length}`}
+                  sub="weeks done" onClick={() => setView("ThisWeek")} />
+                <Tile label="SOPs" value={`${items.filter((i) => i.view === "SOP" && i.sop?.published).length}/${items.filter((i) => i.view === "SOP").length}`}
+                  sub="published" onClick={() => setView("SOP")} />
+                {unowned > 0 && (
+                  <Tile label="Need an owner" value={String(unowned)} sub="an idea, not a task" warn
+                    onClick={() => setView("ThisWeek")} />
+                )}
+                {blocked > 0 && (
+                  <Tile label="Blocked" value={String(blocked)} sub="clear on Monday" warn
+                    onClick={() => setView("Blocked")} />
+                )}
+                {firing > 0 && (
+                  <Tile label="Triggers" value={String(firing)} sub="firing" warn
+                    onClick={() => setView("Systems")} />
+                )}
               </div>
-            )}
-          </Panel>
+
+              {(() => {
+                const open = items.filter((i) => i.view === "ThisWeek" && i.status !== "Done");
+                const named = [...new Set(open.map((i) => i.owner))].filter((o) => o !== "Unassigned");
+                if (named.length === 0) return null;
+                return (
+                  <Panel className="px-5 py-5">
+                    <p className="text-[11px] tracking-[0.18em] uppercase text-[var(--muted-3)] mb-1">Per owner</p>
+                    <p className="text-[13px] leading-relaxed text-[var(--muted-3)] mb-3">
+                      Three to five each, not between you.
+                    </p>
+                    <dl className="divide-y divide-white/[0.08]">
+                      {named.map((o) => {
+                        const n = open.filter((i) => i.owner === o).length;
+                        const state = n > 5 ? "too many" : n < 3 ? "light" : null;
+                        return (
+                          <div key={o} className="flex items-baseline justify-between gap-3 py-2.5">
+                            <dt className="text-[15px]">{o}</dt>
+                            <dd className="shrink-0 text-right">
+                              <span className={`text-[18px] tabular-nums ${n > 5 ? "text-[var(--alert)]" : ""}`}>{n}</span>
+                              {state && <span className="ml-2 text-[13px] text-[var(--muted-3)]">{state}</span>}
+                            </dd>
+                          </div>
+                        );
+                      })}
+                    </dl>
+                  </Panel>
+                );
+              })()}
+
+              {priorities.length > 0 && (
+                <Panel soft className="px-5 py-5">
+                  <p className="text-[11px] tracking-[0.18em] uppercase text-[var(--muted-3)] mb-3">Housekeeping</p>
+                  <ul className="space-y-2.5">
+                    {priorities.map((x, i) => (
+                      <li key={i}>
+                        <button onClick={() => x.goTo && setView(x.goTo as View)} className="text-left w-full min-h-[44px]">
+                          <span className="block text-[15px] leading-snug">{x.text}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </Panel>
+              )}
+            </div>
+          </div>
         )}
 
         {!["QuarterlyOKR", "Money", "Meetings", "Systems", "Team"].includes(view) && (
@@ -641,7 +639,16 @@ export default function RoadmapPage() {
         )}
 
         {view === "ThisWeek" && weeks.length > 0 && (
-          <Reveal className="mt-20 block">
+          <button
+            onClick={() => setShowWeeks((v) => !v)}
+            className="min-h-[46px] text-[15px] text-[var(--muted)] hover:text-[var(--text)]"
+          >
+            {showWeeks ? "Hide the 12-week plan" : `Show the 12-week plan · ${cadenceDone}/${weeks.length} done`}
+          </button>
+        )}
+
+        {view === "ThisWeek" && weeks.length > 0 && showWeeks && (
+          <Reveal className="mt-12 block">
             <Eyebrow>The first 12 weeks</Eyebrow>
             <p className="text-[16px] leading-relaxed text-[var(--muted)] mb-6">
               One objective per week, straight from the plan. Pull a week in and it becomes editable
@@ -908,6 +915,7 @@ function Money({
   call: (u: string, m: string, b?: unknown) => Promise<boolean>;
 }) {
   // Actuals come from the Monday cards. Nothing here is typed twice.
+  const [showAll, setShowAll] = useState(false);
   const weekly = meetings.filter((m) => m.kind === "MondayBusiness" || m.kind === "MondayMonthly");
   const actual = collectedByMonth(weekly);
 
@@ -932,7 +940,7 @@ function Money({
           Actuals are the cash collected on your Monday cards — enter it once, it appears here.
         </p>
         <div className="divide-y divide-white/10 border-y border-white/10">
-          {rows.map((m) => (
+          {(showAll ? rows : rows.slice(0, 4)).map((m) => (
             <div key={m.id} className="py-4">
               <div className="flex items-baseline justify-between gap-4">
                 <span className="text-[16px]">{m.label}</span>
@@ -961,15 +969,23 @@ function Money({
             </div>
           ))}
         </div>
+        {rows.length > 4 && (
+          <button
+            onClick={() => setShowAll((v) => !v)}
+            className="mt-4 min-h-[46px] text-[15px] text-[var(--muted)] hover:text-[var(--text)]"
+          >
+            {showAll ? "Show fewer months" : `Show all ${rows.length} months to $250K`}
+          </button>
+        )}
         {!anyActual && (
-          <p className="mt-5 text-[15px] leading-relaxed text-[var(--muted-3)]">
+          <p className="mt-4 text-[15px] leading-relaxed text-[var(--muted-3)]">
             No actuals yet. Log a Monday meeting and fill in cash collected, and these fill in
             themselves.
           </p>
         )}
       </section>
 
-      <section className="mt-16">
+      <section className="mt-12">
         <Eyebrow>Monday thresholds</Eyebrow>
         <p className="text-[16px] leading-relaxed text-[var(--muted)] mb-6">
           Recalibrate after 60–90 days of real data. Using the same definition every week matters more
@@ -987,7 +1003,7 @@ function Money({
         </div>
       </section>
 
-      <section className="mt-16">
+      <section className="mt-12">
         <Eyebrow>True after 90 days</Eyebrow>
         <p className="text-[16px] leading-relaxed text-[var(--muted)] mb-6">
           The test of whether the first quarter actually worked.
