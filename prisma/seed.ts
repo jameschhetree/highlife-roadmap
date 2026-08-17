@@ -256,9 +256,9 @@ const QUARTERS: {
 
 // Section 18. Owners are the document's own suggestions.
 const SOPS: { n: number; title: string; owner: string; with?: string }[] = [
-  { n: 1, title: "New lead response + qualification", owner: "Marketing/Sales" },
+  { n: 1, title: "New lead response + qualification", owner: "Marketing partner" },
   { n: 2, title: "Podcast tour experience", owner: "Jaco", with: "Sales" },
-  { n: 3, title: "Proposal + follow-up sequence", owner: "Marketing/Sales" },
+  { n: 3, title: "Proposal + follow-up sequence", owner: "Marketing partner" },
   { n: 4, title: "Recurring package close + autopay", owner: "Jaco", with: "Sales" },
   { n: 5, title: "Podcast client onboarding", owner: "JoJo", with: "Podcast Producer, once hired" },
   { n: 6, title: "Podcast room setup + preflight", owner: "JoJo", with: "Engineers" },
@@ -289,7 +289,7 @@ const WEEKS: { week: number; objective: string; deliverable: string }[] = [
 // Section 11 — owned content cadence, as recurring content slots.
 const CONTENT: { title: string; owner: string; kpi: string; notes: string }[] = [
   { title: "HL Podcast — weekly episode", owner: "Unassigned", kpi: "Cadence completed", notes: "Captured Sunday. Owned media, authority and short-form source. The plan does not name an owner for this — assign one." },
-  { title: "Podcast commercials — 2x/month batch", owner: "Marketing/Sales", kpi: "Leads by source", notes: "Captured Sunday. Demand generation for the podcast revenue engine." },
+  { title: "Podcast commercials — 2x/month batch", owner: "Marketing partner", kpi: "Leads by source", notes: "Captured Sunday. Demand generation for the podcast revenue engine." },
   { title: "HL Freestyle — 1x/month", owner: "Unassigned", kpi: "Cadence completed", notes: "Captured Saturday. Music credibility, artist community." },
   { title: "Monthly event", owner: "Unassigned", kpi: "Revenue + leads", notes: "Every event needs one primary goal: revenue, leads, content or community." },
 ];
