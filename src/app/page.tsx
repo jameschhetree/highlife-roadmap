@@ -333,10 +333,15 @@ export default function RoadmapPage() {
     monthLabel: null, monthTarget: null, collected: null,
   });
   const openThisWeek = byOwner(items.filter((i) => i.view === "ThisWeek" && i.status !== "Done")).length;
+  const board = scoreboard(months, meetings, weeks);
   const unowned = items.filter((i) => i.owner === "Unassigned").length;
 
+  // The dashboard is the one view that is meant to fit a monitor exactly.
+  // Everything else is a document and scrolls.
+  const dashboard = view === "ThisWeek";
+
   return (
-    <div className="min-h-screen lg:pl-[248px]">
+    <div className={`min-h-screen lg:pl-[248px] ${dashboard ? "xl:h-dvh xl:min-h-0 xl:overflow-hidden xl:flex xl:flex-col" : ""}`}>
       {/* On a phone the rail is off-canvas, so without this button the whole
           navigation is unreachable. It was missing on the first pass and the
           only reason I noticed is that the browser found zero of them. */}
@@ -416,7 +421,9 @@ export default function RoadmapPage() {
         </div>
       </aside>
 
-      <header className="px-5 md:px-10 pt-6 lg:pt-10 pb-6 max-w-[1100px] mx-auto">
+      <header className={`px-5 md:px-10 ${dashboard
+        ? "w-full max-w-[1800px] mx-auto pt-5 pb-4 xl:shrink-0"
+        : "max-w-[1100px] mx-auto pt-6 lg:pt-10 pb-6"}`}>
         <button
           onClick={() => setNavOpen(true)}
           style={BLUR(20)}
@@ -428,7 +435,7 @@ export default function RoadmapPage() {
         {/* The page names itself. "Roadmap" on every tab told you nothing about
             where you were. */}
         <div className="flex items-baseline justify-between gap-4 flex-wrap">
-          <h1 className="text-[30px] md:text-[36px] leading-[1.05] font-semibold tracking-[-0.025em]">
+          <h1 className={`${dashboard ? "text-[26px] md:text-[30px]" : "text-[30px] md:text-[36px]"} leading-[1.05] font-semibold tracking-[-0.025em]`}>
             {TABS.find((t) => t.key === view)?.label}
           </h1>
           {current && view === "ThisWeek" && (
@@ -437,10 +444,13 @@ export default function RoadmapPage() {
             </p>
           )}
         </div>
-        <p className="mt-2 text-[16px] leading-relaxed text-[var(--muted)] max-w-[70ch]">
+        <p className={`mt-2 text-[16px] leading-relaxed text-[var(--muted)] max-w-[70ch] ${dashboard ? "xl:hidden" : ""}`}>
           {TABS.find((t) => t.key === view)?.blurb}
           {who !== "Everyone" && <span className="text-[var(--text)]"> Showing {who} only.</span>}
         </p>
+        {dashboard && who !== "Everyone" && (
+          <p className="mt-1 hidden xl:block text-[15px] text-[var(--muted)]">Showing {who} only.</p>
+        )}
 
         {error && (
           <div className="mt-5 px-4 py-3.5 rounded-xl text-[16px] leading-relaxed bezel" style={BLUR(20)}>
@@ -449,7 +459,9 @@ export default function RoadmapPage() {
         )}
       </header>
 
-      <main className="max-w-[1100px] mx-auto px-5 md:px-10 pb-32">
+      <main className={`px-5 md:px-10 ${dashboard
+        ? "w-full max-w-[1800px] mx-auto pb-6 xl:flex-1 xl:min-h-0"
+        : "max-w-[1100px] mx-auto pb-32"}`}>
 
 
         {error && (
@@ -467,21 +479,109 @@ export default function RoadmapPage() {
         {/* This week is the dashboard. Two columns on a wide screen so it reads
             at a glance instead of scrolling for a minute: what to do on the
             left, where you stand on the right. */}
-        {view === "ThisWeek" && (
-          <Scoreboard months={months} meetings={meetings} weeks={weeks} onOpen={setView} />
-        )}
+        {/*
+          One screen, no scrolling, on a wide monitor.
 
+          Jaco sent four dashboards and they all do the same thing: a grid of
+          cards that fits the viewport, each card naming itself and putting its
+          number in the corner. The old layout stacked the same content down a
+          1100px column, so half of it was below the fold and the widescreen he
+          works on was two thirds empty.
+
+          Below 1280px this falls back to a stack that scrolls normally — a
+          fixed-height grid on a laptop screen would crush every card. The
+          panels in the lower row scroll inside themselves, so the page never
+          does.
+        */}
         {view === "ThisWeek" && (
-          <div className="grid gap-5 lg:grid-cols-[1.3fr_1fr] items-start mb-10">
-            <div className="space-y-5">
-              <Panel className="px-5 py-5">
+          <div className="grid gap-4 xl:h-full xl:min-h-0 xl:grid-cols-12 xl:grid-rows-[auto_minmax(0,1fr)]">
+            <div className="xl:col-span-5 xl:min-h-0">
+              <PaceCard board={board} onOpen={setView} />
+            </div>
+
+            <div className="xl:col-span-4 xl:min-h-0 grid grid-cols-2 gap-3 content-start">
+              <Tile label="Collected" value={collectedTotal == null ? "—" : dollars(collectedTotal)}
+                sub={current ? `of ${current.cumulative} by Sep 30` : ""} onClick={() => setView("Money")} />
+              <Tile label="Open" value={String(openThisWeek)}
+                sub={overdue > 0 ? `${overdue} past due` : "on time"} warn={overdue > 0}
+                onClick={() => setView("ThisWeek")} />
+              <Tile label="Cadence" value={`${cadenceDone}/${weeks.length}`}
+                sub="weeks done" onClick={() => setView("ThisWeek")} />
+              <Tile label="SOPs" value={`${items.filter((i) => i.view === "SOP" && i.sop?.published).length}/${items.filter((i) => i.view === "SOP").length}`}
+                sub="published" onClick={() => setView("SOP")} />
+              {unowned > 0 && (
+                <Tile label="Need an owner" value={String(unowned)} sub="an idea, not a task" warn
+                  onClick={() => setView("ThisWeek")} />
+              )}
+              {blocked > 0 && (
+                <Tile label="Blocked" value={String(blocked)} sub="clear on Monday" warn
+                  onClick={() => setView("Blocked")} />
+              )}
+              {firing > 0 && (
+                <Tile label="Triggers" value={String(firing)} sub="firing" warn
+                  onClick={() => setView("Systems")} />
+              )}
+            </div>
+
+            <div className="xl:col-span-3 xl:min-h-0">
+              <ToursCard board={board} />
+            </div>
+
+            {/* The tasks, as a card like everything else. They were a bare list
+                running down the page under a heading, which is why they did not
+                look like part of the same product. */}
+            <div className="xl:col-span-5 xl:min-h-0">
+              <Panel className="h-full min-h-0 flex flex-col px-5 py-4">
+                <div className="flex items-start justify-between gap-4 mb-3">
+                  <div className="min-w-0">
+                    <p className="text-[15px] leading-tight">This week</p>
+                    <p className="mt-0.5 text-[13px] text-[var(--muted-3)]">Due before next Monday</p>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <p className="text-[26px] leading-none tabular-nums tracking-[-0.02em]">
+                      {openThisWeek}
+                    </p>
+                    <select
+                      value={groupBy}
+                      onChange={(e) => setGroupBy(e.target.value as never)}
+                      aria-label="Group by"
+                      className="min-h-[36px] rounded-full px-3 text-[13px]"
+                    >
+                      <option value="due">Due date</option>
+                      <option value="owner">Owner</option>
+                      <option value="priority">Priority</option>
+                      <option value="none">Nothing</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="min-h-0 flex-1 overflow-y-auto no-scrollbar -mx-1 px-1">
+                  {visible.length === 0 ? (
+                    <Empty>Nothing due before Monday.</Empty>
+                  ) : (
+                    <Items items={visible} call={call} ownerOptions={ownerOptions} groupBy={groupBy} dense />
+                  )}
+                </div>
+
+                <div className="pt-3 mt-1 border-t border-white/10">
+                  <AddItem
+                    view={view} quarterId={current?.id ?? null}
+                    open={adding} setOpen={setAdding} onDone={load} onError={setError}
+                    ownerOptions={ownerOptions}
+                  />
+                </div>
+              </Panel>
+            </div>
+
+            <div className="xl:col-span-4 xl:min-h-0 flex flex-col gap-4 xl:overflow-y-auto no-scrollbar">
+              <Panel className="px-5 py-4 shrink-0">
                 <p className="text-[11px] tracking-[0.18em] uppercase text-[var(--muted-3)] mb-2">
                   {guide.weekday}
                 </p>
                 <p className="text-[19px] leading-snug mb-2">{guide.headline}</p>
                 <p className="text-[15px] leading-relaxed text-[var(--muted)]">{guide.detail}</p>
                 {guide.goTo && (
-                  <div className="mt-5">
+                  <div className="mt-4">
                     <Button arrow onClick={() => setView(guide.goTo as View)}>{guide.goToLabel}</Button>
                   </div>
                 )}
@@ -503,6 +603,53 @@ export default function RoadmapPage() {
                 </Fold>
               )}
 
+              {weeks.length > 0 && (
+                <Fold title="The first 12 weeks" count={`${cadenceDone}/${weeks.length} done`} soft>
+                  <p className="text-[15px] leading-relaxed text-[var(--muted)] mb-5">
+                    One objective per week, straight from the plan. Pull a week in and it becomes
+                    editable commitments in the list — assign the owners, change the wording, add what
+                    the plan did not think of.
+                  </p>
+            <Eyebrow>The first 12 weeks</Eyebrow>
+            <p className="text-[16px] leading-relaxed text-[var(--muted)] mb-6">
+              One objective per week, straight from the plan. Pull a week in and it becomes editable
+              commitments above — assign the owners, change the wording, add what the plan did not think of.
+            </p>
+            <div className="divide-y divide-white/10 border-t border-white/10">
+              {weeks.map((w) => {
+                const loaded = items.some((i) => i.weekNumber === w.week);
+                const isNow = currentWeek?.week === w.week;
+                return (
+                  <div key={w.id} className="py-5 flex gap-4">
+                    <Tick
+                      done={w.done} label={`Week ${w.week}`}
+                      onClick={() => call(`/api/weeks/${w.id}`, "PATCH", { done: !w.done })}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className={`text-[17px] leading-snug ${w.done ? "text-[var(--muted-3)] line-through" : ""}`}>
+                        <span className="text-[var(--muted-3)] tabular-nums mr-2">{w.week}</span>
+                        {w.objective}
+                        {isNow && (
+                          <span className="ml-3 text-[12px] tracking-[0.14em] uppercase text-[var(--text)]">This week</span>
+                        )}
+                      </p>
+                      <p className="mt-1.5 text-[15px] leading-relaxed text-[var(--muted)]">{w.deliverable}</p>
+                      <div className="mt-3">
+                        {loaded ? (
+                          <span className="text-[14px] text-[var(--muted-3)]">Already pulled into This week</span>
+                        ) : (
+                          <Button onClick={() => call(`/api/weeks/${w.id}/load`, "POST")}>
+                            Pull week {w.week} in
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+                </Fold>
+              )}
               <Fold
                 title="What this week should be about"
                 count={focus.focus.length ? `${focus.focus.length}${focus.stale ? " · stale" : ""}` : "not yet"}
@@ -555,40 +702,15 @@ export default function RoadmapPage() {
               </Fold>
             </div>
 
-            <div className="space-y-5">
-              <div className="grid grid-cols-2 gap-3">
-                <Tile label="Collected" value={collectedTotal == null ? "—" : dollars(collectedTotal)}
-                  sub={current ? `of ${current.cumulative} by Sep 30` : ""} onClick={() => setView("Money")} />
-                <Tile label="Open" value={String(openThisWeek)}
-                  sub={overdue > 0 ? `${overdue} past due` : "on time"} warn={overdue > 0}
-                  onClick={() => setView("ThisWeek")} />
-                <Tile label="Cadence" value={`${cadenceDone}/${weeks.length}`}
-                  sub="weeks done" onClick={() => setView("ThisWeek")} />
-                <Tile label="SOPs" value={`${items.filter((i) => i.view === "SOP" && i.sop?.published).length}/${items.filter((i) => i.view === "SOP").length}`}
-                  sub="published" onClick={() => setView("SOP")} />
-                {unowned > 0 && (
-                  <Tile label="Need an owner" value={String(unowned)} sub="an idea, not a task" warn
-                    onClick={() => setView("ThisWeek")} />
-                )}
-                {blocked > 0 && (
-                  <Tile label="Blocked" value={String(blocked)} sub="clear on Monday" warn
-                    onClick={() => setView("Blocked")} />
-                )}
-                {firing > 0 && (
-                  <Tile label="Triggers" value={String(firing)} sub="firing" warn
-                    onClick={() => setView("Systems")} />
-                )}
-              </div>
-
+            <div className="xl:col-span-3 xl:min-h-0 flex flex-col gap-4 xl:overflow-y-auto no-scrollbar">
               {(() => {
                 const open = items.filter((i) => i.view === "ThisWeek" && i.status !== "Done");
                 const named = [...new Set(open.map((i) => i.owner))].filter((o) => o !== "Unassigned");
                 if (named.length === 0) return null;
                 return (
-                  <Fold title="Per owner" count={`${named.length}`} open>
-                    <p className="text-[13px] leading-relaxed text-[var(--muted-3)] mb-3">
-                      Three to five each, not between you.
-                    </p>
+                  <Panel className="px-5 py-4 shrink-0">
+                    <CardHead title="Per owner" sub="Three to five each, not between you"
+                      value={String(named.length)} />
                     <dl className="divide-y divide-white/[0.08]">
                       {named.map((o) => {
                         const n = open.filter((i) => i.owner === o).length;
@@ -604,7 +726,7 @@ export default function RoadmapPage() {
                         );
                       })}
                     </dl>
-                  </Fold>
+                  </Panel>
                 );
               })()}
 
@@ -625,7 +747,7 @@ export default function RoadmapPage() {
           </div>
         )}
 
-        {!["QuarterlyOKR", "Money", "Meetings", "Systems", "Team"].includes(view) && (
+        {!["QuarterlyOKR", "Money", "Meetings", "Systems", "Team", "ThisWeek"].includes(view) && (
           <>
             {view === "RevenueProject" && (
               <div className="mb-8">
@@ -662,57 +784,6 @@ export default function RoadmapPage() {
           </>
         )}
 
-        {view === "ThisWeek" && weeks.length > 0 && (
-          <button
-            onClick={() => setShowWeeks((v) => !v)}
-            className="min-h-[46px] text-[15px] text-[var(--muted)] hover:text-[var(--text)]"
-          >
-            {showWeeks ? "Hide the 12-week plan" : `Show the 12-week plan · ${cadenceDone}/${weeks.length} done`}
-          </button>
-        )}
-
-        {view === "ThisWeek" && weeks.length > 0 && showWeeks && (
-          <Reveal className="mt-12 block">
-            <Eyebrow>The first 12 weeks</Eyebrow>
-            <p className="text-[16px] leading-relaxed text-[var(--muted)] mb-6">
-              One objective per week, straight from the plan. Pull a week in and it becomes editable
-              commitments above — assign the owners, change the wording, add what the plan did not think of.
-            </p>
-            <div className="divide-y divide-white/10 border-t border-white/10">
-              {weeks.map((w) => {
-                const loaded = items.some((i) => i.weekNumber === w.week);
-                const isNow = currentWeek?.week === w.week;
-                return (
-                  <div key={w.id} className="py-5 flex gap-4">
-                    <Tick
-                      done={w.done} label={`Week ${w.week}`}
-                      onClick={() => call(`/api/weeks/${w.id}`, "PATCH", { done: !w.done })}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className={`text-[17px] leading-snug ${w.done ? "text-[var(--muted-3)] line-through" : ""}`}>
-                        <span className="text-[var(--muted-3)] tabular-nums mr-2">{w.week}</span>
-                        {w.objective}
-                        {isNow && (
-                          <span className="ml-3 text-[12px] tracking-[0.14em] uppercase text-[var(--text)]">This week</span>
-                        )}
-                      </p>
-                      <p className="mt-1.5 text-[15px] leading-relaxed text-[var(--muted)]">{w.deliverable}</p>
-                      <div className="mt-3">
-                        {loaded ? (
-                          <span className="text-[14px] text-[var(--muted-3)]">Already pulled into This week</span>
-                        ) : (
-                          <Button onClick={() => call(`/api/weeks/${w.id}/load`, "POST")}>
-                            Pull week {w.week} in
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </Reveal>
-        )}
       </main>
 
       <Assistant onChanged={load} />
@@ -778,11 +849,13 @@ function pacePctAt(
  * This says it in three ways at once: the sentence, the bar with today marked
  * on it, and the plan's whole revenue curve with actual drawn on top.
  */
-function Scoreboard({
-  months, meetings, weeks, onOpen,
-}: {
-  months: Month[]; meetings: Meeting[]; weeks: Week[]; onOpen: (v: View) => void;
-}) {
+/**
+ * Everything the scoreboard needs, worked out once.
+ *
+ * The pace card and the tours card sit in different cells of the dashboard
+ * grid, so the arithmetic cannot live inside either of them.
+ */
+function scoreboard(months: Month[], meetings: Meeting[], weeks: Week[]) {
   const weekly = meetings.filter((m) => m.kind === "MondayBusiness" || m.kind === "MondayMonthly");
   const actual = collectedByMonth(weekly as never);
   const planStart = planStartOf(weeks);
@@ -814,7 +887,6 @@ function Scoreboard({
     };
   });
 
-  // Between this month's tick and the next, in proportion to how far through it is.
   const nowMark =
     monthIndex >= 0 && p && bankedByNow != null
       ? { at: monthIndex + p.through - 1 + (monthIndex === 0 ? 1 : 0), expected: bankedByNow }
@@ -824,101 +896,145 @@ function Scoreboard({
   const card = [...weekly]
     .sort((a, b) => Date.parse(b.date) - Date.parse(a.date))
     .find((m) => m.toursBooked != null || m.leads != null) ?? null;
-
   const stages = card ? funnel(card) : null;
-  const hasFunnel = stages?.some((s) => s.value != null);
+
+  // Cash by week, oldest first, for the sparkline on the Collected tile. One
+  // week draws nothing; it fills in as Mondays accumulate.
+  const cashByWeek = [...weekly]
+    .sort((a, b) => Date.parse(a.date) - Date.parse(b.date))
+    .map((m) => m.cashCollected);
+
+  return { p, month, points, nowMark, card, stages, hasFunnel: stages?.some((s) => s.value != null) ?? false, cashByWeek };
+}
+
+type Board = ReturnType<typeof scoreboard>;
+
+/**
+ * Where the money stands. The card that leads the board.
+ *
+ * The tiles under it said "$1,275 collected of $16,000" and left the reader to
+ * work out whether that was good — which depends entirely on what day it is.
+ * Nothing on the page had a time axis, so nothing on the page could say behind.
+ */
+function PaceCard({ board, onOpen }: { board: Board; onOpen: (v: View) => void }) {
+  const { p, month, points, nowMark } = board;
 
   return (
-    <section className="mb-5 grid gap-5 lg:grid-cols-[1.3fr_1fr] items-start">
-      <Panel className="px-5 py-5">
-        {p && month ? (
-          <>
-            <div className="flex items-baseline justify-between gap-4 flex-wrap mb-3">
-              <p className="text-[11px] tracking-[0.18em] uppercase text-[var(--muted-3)]">
-                {month.label}
-              </p>
-              <p className="text-[13px] tabular-nums text-[var(--muted-3)]">
-                day {p.daysGone} of {p.daysTotal}
-              </p>
-            </div>
+    <Panel className="h-full min-h-0 flex flex-col px-5 py-4">
+      {p && month ? (
+        <>
+          <CardHead
+            title={month.label}
+            // The number alone is a minus sign in red. The word is what he reads.
+            sub={`Day ${p.daysGone} of ${p.daysTotal} · ${
+              Math.abs(p.delta) < 1 ? "on pace" : p.delta > 0 ? "ahead of pace" : "behind pace"
+            }`}
+            value={
+              Math.abs(p.delta) < 1 ? "On pace"
+                : p.delta > 0 ? `+${dollars(p.delta)}`
+                : `−${dollars(-p.delta)}`
+            }
+            tone={Math.abs(p.delta) < 1 ? undefined : p.delta > 0 ? "ok" : "alert"}
+          />
 
-            <p className="text-[26px] md:text-[30px] leading-[1.15] tracking-[-0.02em] mb-1">
-              {Math.abs(p.delta) < 1 ? (
-                <>Exactly on pace.</>
-              ) : p.delta > 0 ? (
-                <>Ahead by <span className="text-[var(--ok)] tabular-nums">{dollars(p.delta)}</span>.</>
-              ) : (
-                <>Behind by <span className="text-[var(--alert)] tabular-nums">{dollars(-p.delta)}</span>.</>
-              )}
-            </p>
-            <p className="text-[15px] leading-relaxed text-[var(--muted)] mb-4 tabular-nums">
-              {dollars(p.collected)} in, {dollars(p.expected)} due by tonight, {dollars(month.target)} for the month.
-            </p>
-
-            <PaceBar pct={p.pct} through={p.through} />
-            <p className="mt-2 text-[13px] text-[var(--muted-3)]">
-              The mark is today. The bar is the month.
-            </p>
-          </>
-        ) : (
-          <>
-            <p className="text-[19px] leading-snug mb-2">No target for this month yet.</p>
-            <p className="text-[15px] leading-relaxed text-[var(--muted)]">
-              Pace needs a monthly target to measure against. They live on Money.
-            </p>
-          </>
-        )}
-
-        <div className="mt-6 -mx-1 text-[var(--text)]">
-          <Curve points={points} now={nowMark} />
-        </div>
-        <div className="mt-3 flex items-center gap-5 text-[13px] text-[var(--muted-3)]">
-          <span className="flex items-center gap-2">
-            <span className="w-4 h-px bg-current opacity-60" style={{ borderTop: "1px dashed currentColor" }} />
-            plan
-          </span>
-          <span className="flex items-center gap-2">
-            <span className="w-4 h-[2px] rounded bg-[var(--text)]" />
-            collected
-          </span>
-          <button onClick={() => onOpen("Money")} className="ml-auto text-[var(--muted)] hover:text-[var(--text)]">
-            Money →
-          </button>
-        </div>
-      </Panel>
-
-      {hasFunnel ? (
-        <Panel className="px-5 py-5">
-          <p className="text-[11px] tracking-[0.18em] uppercase text-[var(--muted-3)] mb-4">
-            Tours, last card
+          <p className="text-[15px] leading-relaxed text-[var(--muted)] tabular-nums mb-3">
+            {dollars(p.collected)} in, {dollars(p.expected)} due by tonight, {dollars(month.target)} for the month.
           </p>
-          <Funnel stages={stages!} />
-          <p className="mt-4 text-[13px] leading-relaxed text-[var(--muted-3)]">
-            {(() => {
-              const b = card?.toursBooked ?? null;
-              const s = card?.toursShowed ?? null;
-              if (b == null || s == null || b === 0) return "Fill in leads and tours on Monday and the drop shows up here.";
-              const rate = (s / b) * 100;
-              const missed = b - s;
-              return rate >= 70
-                ? `${Math.round(rate)}% showed. Green on your threshold.`
-                : `${missed} booked tour${missed === 1 ? "" : "s"} did not turn up. Green is 70% showing.`;
-            })()}
-          </p>
-        </Panel>
+
+          <PaceBar pct={p.pct} through={p.through} />
+        </>
       ) : (
-        <Panel className="px-5 py-5">
-          <p className="text-[11px] tracking-[0.18em] uppercase text-[var(--muted-3)] mb-3">Tours</p>
+        <>
+          <CardHead title="Pace" sub="No target for this month yet" value="—" />
           <p className="text-[15px] leading-relaxed text-[var(--muted)]">
-            Nothing to draw yet. Leads and tours go on the Monday card, and the funnel
-            appears here the moment there are numbers on one.
+            Pace needs a monthly target to measure against. They live on Money.
           </p>
-        </Panel>
+        </>
       )}
-    </section>
+
+      <div className="mt-4 min-h-0 flex-1 flex items-end text-[var(--text)]">
+        <Curve points={points} now={nowMark} height={168} />
+      </div>
+
+      <div className="mt-2 flex items-center gap-5 text-[13px] text-[var(--muted-3)]">
+        <span className="flex items-center gap-2">
+          <span className="w-4 h-px" style={{ borderTop: "1px dashed currentColor" }} />
+          plan
+        </span>
+        <span className="flex items-center gap-2">
+          <span className="w-4 h-[2px] rounded bg-[var(--text)]" />
+          collected
+        </span>
+        <button onClick={() => onOpen("Money")} className="ml-auto text-[var(--muted)] hover:text-[var(--text)]">
+          Money →
+        </button>
+      </div>
+    </Panel>
   );
 }
 
+/** Tours as a funnel rather than as three counts in three boxes. */
+function ToursCard({ board }: { board: Board }) {
+  const { card, stages, hasFunnel } = board;
+
+  if (!hasFunnel) {
+    return (
+      <Panel className="h-full min-h-0 px-5 py-4">
+        <CardHead title="Tours" sub="Nothing to draw yet" value="—" />
+        <p className="text-[15px] leading-relaxed text-[var(--muted)]">
+          Leads and tours go on the Monday card. The funnel appears the moment
+          there are numbers on one.
+        </p>
+      </Panel>
+    );
+  }
+
+  const b = card?.toursBooked ?? null;
+  const s = card?.toursShowed ?? null;
+  const rate = b != null && s != null && b > 0 ? (s / b) * 100 : null;
+
+  return (
+    <Panel className="h-full min-h-0 flex flex-col px-5 py-4">
+      <CardHead title="Tours" sub="Last card"
+        value={rate == null ? "—" : `${Math.round(rate)}%`}
+        tone={rate == null ? undefined : rate >= 70 ? "ok" : rate >= 60 ? "warn" : "alert"} />
+      <Funnel stages={stages!} />
+      <p className="mt-3 text-[13px] leading-relaxed text-[var(--muted-3)]">
+        {rate == null
+          ? "Fill in leads and tours on Monday and the drop shows up here."
+          : rate >= 70
+            ? `${Math.round(rate)}% showed. Green on your threshold.`
+            : `${b! - s!} booked tour${b! - s! === 1 ? "" : "s"} did not turn up. Green is 70% showing.`}
+      </p>
+    </Panel>
+  );
+}
+
+/**
+ * The header every card wears: what it is on the left, what it says on the right.
+ *
+ * Taken from the dashboards Jaco sent — each card names itself and puts its one
+ * number in the corner, so the board can be read by running down the right edge
+ * without stopping to parse a sentence.
+ */
+function CardHead({ title, sub, value, tone }: {
+  title: string; sub?: string; value?: string; tone?: "ok" | "warn" | "alert";
+}) {
+  const colour =
+    tone === "ok" ? "text-[var(--ok)]" : tone === "warn" ? "text-[var(--warn)]"
+      : tone === "alert" ? "text-[var(--alert)]" : "";
+  return (
+    <div className="flex items-start justify-between gap-4 mb-3">
+      <div className="min-w-0">
+        <p className="text-[15px] leading-tight truncate">{title}</p>
+        {sub && <p className="mt-0.5 text-[13px] text-[var(--muted-3)] truncate">{sub}</p>}
+      </div>
+      {value && (
+        <p className={`shrink-0 text-[26px] leading-none tabular-nums tracking-[-0.02em] ${colour}`}>{value}</p>
+      )}
+    </div>
+  );
+}
 function Row({ k, v, big, warn }: { k: string; v: string; big?: boolean; warn?: boolean }) {
   return (
     <div className="flex items-baseline justify-between gap-4 py-3.5">
@@ -931,13 +1047,15 @@ function Row({ k, v, big, warn }: { k: string; v: string; big?: boolean; warn?: 
 }
 
 function Items({
-  items, call, ownerOptions, groupBy = "due", onGroupBy,
+  items, call, ownerOptions, groupBy = "due", onGroupBy, dense = false,
 }: {
   items: Item[];
   call: (u: string, m: string, b?: unknown) => Promise<boolean>;
   ownerOptions: string[];
   groupBy?: "due" | "owner" | "priority" | "none";
   onGroupBy?: (v: "due" | "owner" | "priority" | "none") => void;
+  /** Inside a dashboard card, where the room is a fixed panel rather than a page. */
+  dense?: boolean;
 }) {
   const [open, setOpen] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
@@ -967,7 +1085,7 @@ function Items({
       )}
 
       {groups.map((g) => (
-        <section key={g.key} className="mb-7">
+        <section key={g.key} className={dense ? "mb-4" : "mb-7"}>
           {g.label && (
             <div className="flex items-baseline gap-3 mb-1">
               <h3 className={`text-[13px] tracking-[0.14em] uppercase ${g.urgent ? "text-[var(--alert)]" : "text-[var(--muted-3)]"}`}>
@@ -977,7 +1095,7 @@ function Items({
             </div>
           )}
           <ItemRows
-            items={g.items as Item[]} call={call} ownerOptions={ownerOptions}
+            items={g.items as Item[]} call={call} ownerOptions={ownerOptions} dense={dense}
             open={open} setOpen={setOpen} confirming={confirming} setConfirming={setConfirming}
           />
         </section>
@@ -987,18 +1105,19 @@ function Items({
 }
 
 function ItemRows({
-  items, call, ownerOptions, open, setOpen, confirming, setConfirming,
+  items, call, ownerOptions, open, setOpen, confirming, setConfirming, dense = false,
 }: {
   items: Item[];
   call: (u: string, m: string, b?: unknown) => Promise<boolean>;
   ownerOptions: string[];
   open: string | null; setOpen: (v: string | null) => void;
   confirming: string | null; setConfirming: (v: string | null) => void;
+  dense?: boolean;
 }) {
   return (
     <div className="divide-y divide-white/10 border-t border-white/10">
       {items.map((it) => (
-        <div key={it.id} className="py-3.5">
+        <div key={it.id} className={dense ? "py-2.5" : "py-3.5"}>
           <div className="flex items-start gap-4">
             <Tick
               done={it.status === "Done"}
@@ -1008,10 +1127,10 @@ function ItemRows({
               })}
             />
             <button onClick={() => setOpen(open === it.id ? null : it.id)} className="min-w-0 flex-1 text-left">
-              <span className={`block text-[18px] leading-snug ${it.status === "Done" ? "text-[var(--muted-3)] line-through" : ""}`}>
+              <span className={`block ${dense ? "text-[16px]" : "text-[18px]"} leading-snug ${it.status === "Done" ? "text-[var(--muted-3)] line-through" : ""}`}>
                 {it.title}
               </span>
-              <span className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[14px] text-[var(--muted)]">
+              <span className={`mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 ${dense ? "text-[13px]" : "text-[14px]"} text-[var(--muted)]`}>
                 <span className={it.owner === "Unassigned" ? "text-[var(--alert)]" : "text-[var(--text)]"}>
                   {it.owner === "Unassigned" ? "Needs an owner" : it.owner}
                 </span>
