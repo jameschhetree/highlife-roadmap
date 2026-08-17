@@ -276,3 +276,35 @@ export function Panel({
     </div>
   );
 }
+
+
+/**
+ * A panel that starts closed.
+ *
+ * Jaco asked for the dashboard to fit one screen and to use dropdowns where it
+ * helps. Everything cannot be visible at once and also fit, so the things you
+ * read every morning stay open and the rest collapse — with the count in the
+ * header, so a closed section still tells you whether it is worth opening.
+ */
+export function Fold({
+  title, count, children, open: initial = false, soft = false,
+}: {
+  title: string; count?: string; children: React.ReactNode; open?: boolean; soft?: boolean;
+}) {
+  const [open, setOpen] = useState(initial);
+  return (
+    <div className={`${soft ? "glass-soft" : "bezel"} rounded-2xl`} style={BLUR(soft ? 12 : 20)}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full px-5 py-4 flex items-center justify-between gap-3 min-h-[56px] text-left"
+      >
+        <span className="text-[11px] tracking-[0.18em] uppercase text-[var(--muted-3)]">{title}</span>
+        <span className="flex items-center gap-3 shrink-0">
+          {count && <span className="text-[15px] tabular-nums text-[var(--muted)]">{count}</span>}
+          <span className="text-[15px] text-[var(--muted-3)]">{open ? "−" : "+"}</span>
+        </span>
+      </button>
+      {open && <div className="px-5 pb-5">{children}</div>}
+    </div>
+  );
+}

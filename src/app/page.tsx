@@ -13,7 +13,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { isAdminAuthed } from "@/lib/admin-auth";
-import { Eyebrow, Empty, Field, Choice, Button, Tick, Tag, Reveal, Panel, SaveGroup, BLUR } from "@/components/ui";
+import { Eyebrow, Empty, Field, Choice, Button, Tick, Tag, Reveal, Panel, SaveGroup, Fold, BLUR } from "@/components/ui";
 import { gradeAll, type Card } from "@/lib/grade";
 import { Assistant } from "@/components/assistant";
 import { ThemeToggle } from "@/components/theme";
@@ -471,9 +471,9 @@ export default function RoadmapPage() {
               </Panel>
 
               {currentWeek && (
-                <Panel className="px-5 py-5">
+                <Fold title={`Week ${currentWeek.week} of 12`} count={currentWeek.objective}>
                   <p className="text-[11px] tracking-[0.18em] uppercase text-[var(--muted-3)] mb-2">
-                    Week {currentWeek.week} of 12 · {currentWeek.objective}
+                    {currentWeek.objective}
                   </p>
                   <p className="text-[15px] leading-relaxed text-[var(--muted)]">{currentWeek.deliverable}</p>
                   {!items.some((i) => i.weekNumber === currentWeek.week) && (
@@ -483,18 +483,14 @@ export default function RoadmapPage() {
                       </Button>
                     </div>
                   )}
-                </Panel>
+                </Fold>
               )}
 
-              <Panel className="px-5 py-5">
-                <div className="flex items-baseline justify-between gap-4 mb-2">
-                  <p className="text-[11px] tracking-[0.18em] uppercase text-[var(--muted-3)]">
-                    What this week should be about
-                  </p>
-                  {focus.generatedAt && !focus.stale && (
-                    <span className="shrink-0 text-[12px] text-[var(--muted-3)]">from the plan</span>
-                  )}
-                </div>
+              <Fold
+                title="What this week should be about"
+                count={focus.focus.length ? `${focus.focus.length}${focus.stale ? " · stale" : ""}` : "not yet"}
+                open
+              >
                 {focus.focus.length === 0 ? (
                   <p className="text-[15px] leading-relaxed text-[var(--muted)] mb-4">
                     Reads the plan against where you actually are and names the three to five things
@@ -539,7 +535,7 @@ export default function RoadmapPage() {
                 >
                   {thinking ? "Reading the plan…" : focus.focus.length ? "Work it out again" : "Work out this week"}
                 </Button>
-              </Panel>
+              </Fold>
             </div>
 
             <div className="space-y-5">
@@ -572,8 +568,7 @@ export default function RoadmapPage() {
                 const named = [...new Set(open.map((i) => i.owner))].filter((o) => o !== "Unassigned");
                 if (named.length === 0) return null;
                 return (
-                  <Panel className="px-5 py-5">
-                    <p className="text-[11px] tracking-[0.18em] uppercase text-[var(--muted-3)] mb-1">Per owner</p>
+                  <Fold title="Per owner" count={`${named.length}`} open>
                     <p className="text-[13px] leading-relaxed text-[var(--muted-3)] mb-3">
                       Three to five each, not between you.
                     </p>
@@ -592,13 +587,12 @@ export default function RoadmapPage() {
                         );
                       })}
                     </dl>
-                  </Panel>
+                  </Fold>
                 );
               })()}
 
               {priorities.length > 0 && (
-                <Panel soft className="px-5 py-5">
-                  <p className="text-[11px] tracking-[0.18em] uppercase text-[var(--muted-3)] mb-3">Housekeeping</p>
+                <Fold title="Housekeeping" count={`${priorities.length}`} soft>
                   <ul className="space-y-2.5">
                     {priorities.map((x, i) => (
                       <li key={i}>
@@ -608,7 +602,7 @@ export default function RoadmapPage() {
                       </li>
                     ))}
                   </ul>
-                </Panel>
+                </Fold>
               )}
             </div>
           </div>
