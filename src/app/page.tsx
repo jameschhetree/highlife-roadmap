@@ -25,6 +25,7 @@ import { guideFor } from "@/lib/today";
 import { suggest } from "@/lib/priorities";
 import { rollUp, collectedByMonth, monthUnderReview } from "@/lib/rollup";
 import { occurrenceToLog, nextOccurrence, pretty } from "@/lib/meetingDates";
+import { measureKr } from "@/lib/measure";
 
 type View =
   | "ThisWeek" | "Meetings" | "QuarterlyOKR" | "Money" | "RevenueProject"
@@ -433,7 +434,7 @@ export default function RoadmapPage() {
           </div>
         )}
 
-        {view === "QuarterlyOKR" && <Okrs quarters={quarters} call={call} />}
+        {view === "QuarterlyOKR" && <Okrs quarters={quarters} call={call} meetings={meetings} items={items} />}
         {view === "Money" && <Money months={months} thresholds={thresholds} tests={tests} meetings={meetings} call={call} />}
         {view === "Meetings" && <MeetingsView meetings={meetings} months={months} thresholds={thresholds} call={call} />}
         {view === "Systems" && <Systems data={systems} call={call} />}
@@ -836,8 +837,34 @@ function AddItem({
 }
 
 function Okrs({
-  quarters, call,
-}: { quarters: Quarter[]; call: (u: string, m: string, b?: unknown) => Promise<boolean> }) {
+  quarters, call, meetings, items,
+}: {
+  quarters: Quarter[];
+  call: (u: string, m: string, b?: unknown) => Promise<boolean>;
+  meetings: Meeting[]; items: Item[];
+}) {
+  // What the Monday cards already know, so a key result the scorecard can
+  // answer does not get scored by hand into a different number.
+  const cards = meetings
+    .filter((m) => m.kind === "MondayBusiness" || m.kind === "MondayMonthly")
+    .map((m) => ({
+      date: m.date, toursBooked: m.toursBooked, toursShowed: m.toursShowed,
+      tourCloseRate: m.tourCloseRate, podcastMrr: m.podcastMrr,
+    }));
+  const sops = items.filter((i) => i.view === "SOP");
+  const thisWeek = items.filter((i) => i.view === "ThisWeek");
+  const counts = {
+    sopsPublished: sops.filter((i) => i.sop?.published).length,
+    sopsRequired: 7,
+    meetingsHeld: meetings.length,
+    // Three a week since the sprint began, which is what the plan schedules.
+    meetingsExpected: Math.max(
+      1,
+      Math.ceil((Date.now() - Date.parse("2026-08-10T00:00:00-04:00")) / (7 * 86400000)) * 3
+    ),
+    commitmentsOwnedAndDated: thisWeek.filter((i) => i.owner !== "Unassigned" && i.dueDate).length,
+    commitmentsTotal: thisWeek.length,
+  };
   const [openQ, setOpenQ] = useState<string | null>(
     quarters.find((q) => q.isCurrent)?.id ?? quarters[0]?.id ?? null
   );
@@ -874,13 +901,21 @@ function Okrs({
                     <Eyebrow>{OBJECTIVE_LABEL[o.kind] ?? o.kind}</Eyebrow>
                     <p className="text-[19px] leading-snug mb-5">{o.title}</p>
                     <div className="space-y-6">
-                      {o.keyResults.map((k) => (
+                      {o.keyResults.map((k) => {
+                        const measured = measureKr(k.text, cards, counts);
+                        return (
                         <div key={k.id}>
                           <p className="text-[16px] leading-relaxed text-[var(--muted)]">
                             <span className="text-[var(--muted-3)] tabular-nums mr-2">{k.label}</span>
                             {k.text}
                           </p>
-                          <div className="mt-2.5 flex items-center gap-3">
+                          {measured && (
+                            <p className="mt-2 text-[15px] tabular-nums">
+                              <span className="text-[var(--text)]">{measured.value}</span>
+                              <span className="text-[var(--muted-3)]"> {measured.label} · from the Monday cards</span>
+                            </p>
+                          )}
+                          <div className="mt-2.5 flex flex-wrap items-center gap-3">
                             <span className="text-[13px] tracking-[0.1em] uppercase text-[var(--muted-3)]">Score</span>
                             <input
                               type="number" min="0" max="1" step="0.1"
@@ -893,9 +928,19 @@ function Okrs({
                               }}
                               className="w-[86px] min-h-[46px] rounded-lg px-2 text-[16px] text-center tabular-nums bg-white/[0.04] border border-white/10 focus:outline-none focus:border-white/40"
                             />
+                            {measured && measured.score !== k.score && (
+                              <button
+                                onClick={() => call(`/api/krs/${k.id}`, "PATCH", { score: String(measured.score) })}
+                                className="min-h-[46px] px-4 rounded-full bezel text-[15px]"
+                                style={BLUR(20)}
+                              >
+                                Use {measured.score.toFixed(2)}
+                              </button>
+                            )}
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 ))}
