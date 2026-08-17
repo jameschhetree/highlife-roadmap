@@ -3,80 +3,138 @@
 /**
  * HighLife Roadmap.
  *
- * The eight views named in section 17 of the Operating System document, over the
- * item shape section 17 specifies. Deliberately not a Kanban board: the plan's
- * unit of work is a commitment with an owner and a due date, not a card drifting
- * between columns.
- *
- * Layout follows what Jaco asked for in July — divider-separated rows rather
- * than bordered boxes, shadow only where something is genuinely raised, and
- * underline tabs. He described the previous bordered-card version as the worst
- * build we had done.
+ * Black and white, built for the phone. The first version was designed on a
+ * laptop and Jaco called it unreadable on mobile — 14px type, four stats crammed
+ * into one row, dense rows of metadata. Everything here starts at 17px and
+ * stacks rather than sitting side by side.
  */
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import Link from "next/link";
 import { isAdminAuthed } from "@/lib/admin-auth";
+import { Eyebrow, Empty, Field, Choice, Button, Tick } from "@/components/ui";
+import { gradeAll, type Card } from "@/lib/grade";
 
 type View =
-  | "ThisWeek" | "QuarterlyOKR" | "RevenueProject"
+  | "ThisWeek" | "Meetings" | "QuarterlyOKR" | "Money" | "RevenueProject"
   | "ContentCalendar" | "Event" | "SOP" | "Blocked" | "DecisionLog";
 
 type Item = {
   id: string; title: string; owner: string; pillar: string; view: string;
-  quarterId: string | null; objectiveId: string | null;
-  priority: "Critical" | "Standard" | "Backlog";
+  quarterId: string | null; priority: "Critical" | "Standard" | "Backlog";
   status: "NotStarted" | "InProgress" | "Blocked" | "Done";
   dueDate: string | null; kpi: string; notes: string; dependency: string;
-  sortOrder: number;
 };
 type KeyResult = { id: string; label: string; text: string; score: number | null };
 type Objective = { id: string; kind: string; title: string; keyResults: KeyResult[] };
 type Quarter = {
-  id: string; key: string; name: string; dates: string; revenueTarget: string;
+  id: string; name: string; dates: string; revenueTarget: string;
   cumulative: string; focus: string; isCurrent: boolean; objectives: Objective[];
 };
 type Week = { id: string; week: number; objective: string; deliverable: string; done: boolean };
+type Month = { id: string; label: string; target: number; cumulative: number };
+type Threshold = { id: string; metric: string; green: string; yellow: string; red: string };
+type Test = { id: string; text: string; passed: boolean };
+type Meeting = {
+  id: string; kind: string; date: string;
+  cashCollected: number | null; podcastRevenue: number | null; podcastMrr: number | null;
+  musicRevenue: number | null; leads: number | null; toursBooked: number | null;
+  toursShowed: number | null; tourCloseRate: number | null; recurringConversion: number | null;
+  roomHours: number | null; editTurnaround: number | null; roadmapCompletion: number | null;
+  prep: string; decisions: string; notes: string;
+};
 
-const VIEWS: { key: View; label: string; blurb: string }[] = [
-  { key: "ThisWeek", label: "This Week", blurb: "Leadership commitments due before next Monday." },
-  { key: "QuarterlyOKR", label: "Quarterly OKRs", blurb: "Three company objectives per quarter. No more." },
-  { key: "RevenueProject", label: "Revenue", blurb: "Offer, funnel, campaigns, partnerships and pricing tests." },
-  { key: "ContentCalendar", label: "Content", blurb: "HL Podcast, commercial batches, freestyle and event deliverables." },
-  { key: "Event", label: "Events", blurb: "Every event needs one primary KPI: revenue, leads, content or community." },
-  { key: "SOP", label: "SOPs", blurb: "Document the work in the order revenue touches it." },
-  { key: "Blocked", label: "Blocked", blurb: "Every item waiting on a decision, a person or a dependency." },
-  { key: "DecisionLog", label: "Decisions", blurb: "Rockville, hires, package changes, new room capacity." },
+const TABS: { key: View; label: string; blurb: string }[] = [
+  { key: "ThisWeek", label: "This week", blurb: "Commitments due before next Monday. One owner, one date." },
+  { key: "Meetings", label: "Meetings", blurb: "Monday carries the scorecard. Wednesday and Sunday get a prep brief." },
+  { key: "QuarterlyOKR", label: "OKRs", blurb: "Three company objectives per quarter. No more." },
+  { key: "Money", label: "Money", blurb: "The monthly path to $250K, and the Monday thresholds." },
+  { key: "RevenueProject", label: "Revenue", blurb: "Offer, funnel, campaigns, partnerships, pricing tests." },
+  { key: "ContentCalendar", label: "Content", blurb: "Podcast, commercial batches, freestyle, events." },
+  { key: "Event", label: "Events", blurb: "Every event needs one primary KPI." },
+  { key: "SOP", label: "SOPs", blurb: "Documented in the order revenue touches the work." },
+  { key: "Blocked", label: "Blocked", blurb: "Anything waiting on a decision, a person or a dependency." },
+  { key: "DecisionLog", label: "Decisions", blurb: "Rockville, hires, packages, room capacity." },
+];
+
+const MEETINGS: { kind: string; label: string; when: string; agenda: string[]; scorecard: boolean }[] = [
+  {
+    kind: "MondayBusiness", label: "Monday business", when: "Mondays, 10:00 AM · 60–75 min", scorecard: true,
+    agenda: [
+      "Scoreboard — 10 min", "Sales funnel — 15 min", "Operations — 10 min",
+      "People — 5 min", "Money — 10 min", "Roadmap and SOPs — 10 min",
+      "Commit: owner and due date for the 3–5 biggest things — 10 min",
+    ],
+  },
+  {
+    kind: "MondayMonthly", label: "Monthly review", when: "First Monday · 90 min", scorecard: true,
+    agenda: [
+      "Revenue by line", "Podcast MRR entering and exiting the month",
+      "Sales funnel and which channel created it", "Marketing spend, CPL, CAC",
+      "Operations: utilization, turnaround, complaints", "Brand cadence and reach",
+      "People: who is carrying too much, who is ready for more",
+      "Finance: cash, receivables, upcoming obligations",
+      "Next month: one revenue target, one funnel target, one operating target",
+    ],
+  },
+  {
+    kind: "WednesdayTeam", label: "Wednesday team", when: "Wednesdays, 5:30 PM · 45–60 min", scorecard: false,
+    agenda: [
+      "Wins and recognition — 5 min", "This week and next week bookings and events — 10 min",
+      "Client-service or technical issues everyone can learn from — 10 min",
+      "Training topic or SOP of the week — 15 min",
+      "Intern assignments and accountability — 10 min", "Announcements and questions — 5 min",
+    ],
+  },
+  {
+    kind: "SundayBrand", label: "Sunday brand", when: "Sundays, 4:00 PM · 45–60 min", scorecard: false,
+    agenda: [
+      "Rank Music, Media and Merch 1–3 for the coming week",
+      "Review what is in the content bank",
+      "Decide the next podcast, freestyle, commercial or campaign",
+      "Review the upcoming monthly event and its business objective",
+      "Make the decisions, assign owners, then stop before it becomes a second Monday",
+    ],
+  },
+];
+
+const SCORECARD: [keyof Meeting, string][] = [
+  ["cashCollected", "Cash collected"], ["podcastRevenue", "Podcast revenue"],
+  ["podcastMrr", "Podcast MRR"], ["musicRevenue", "Music revenue"],
+  ["leads", "Leads"], ["toursBooked", "Tours booked"], ["toursShowed", "Tours showed"],
+  ["tourCloseRate", "Tour close rate %"], ["recurringConversion", "Recurring conversion %"],
+  ["roomHours", "Podcast room hours"], ["editTurnaround", "Edit turnaround, days"],
+  ["roadmapCompletion", "Roadmap completion %"],
 ];
 
 const OBJECTIVE_LABEL: Record<string, string> = {
   RevenueEngine: "O1 · Revenue engine",
   OperatingSystem: "O2 · Operating system",
-  BrandFootprint: "O3 · Brand & cultural footprint",
-};
-
-const STATUS_STYLE: Record<Item["status"], string> = {
-  NotStarted: "text-[#9a9a94]",
-  InProgress: "text-teal-700",
-  Blocked: "text-red-700",
-  Done: "text-[#b8b5ad] line-through",
+  BrandFootprint: "O3 · Brand and cultural footprint",
 };
 
 const PILLARS = ["Revenue", "Podcast", "Music", "Media", "Merch", "Events", "Operations", "Finance"];
 const PRIORITIES = ["Critical", "Standard", "Backlog"];
 const STATUSES = ["NotStarted", "InProgress", "Blocked", "Done"];
 
+const money = (n: number) => `$${Math.round(n / 1000)}K`;
 const fmtDate = (d: string | null) =>
   d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "";
+const today = () => new Date().toISOString().slice(0, 10);
 
 export default function RoadmapPage() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
   const [view, setView] = useState<View>("ThisWeek");
+  const [who, setWho] = useState("Everyone");
   const [quarters, setQuarters] = useState<Quarter[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [weeks, setWeeks] = useState<Week[]>([]);
+  const [months, setMonths] = useState<Month[]>([]);
+  const [thresholds, setThresholds] = useState<Threshold[]>([]);
+  const [tests, setTests] = useState<Test[]>([]);
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [error, setError] = useState("");
   const [adding, setAdding] = useState(false);
 
@@ -86,115 +144,111 @@ export default function RoadmapPage() {
   }, [router]);
 
   const load = async () => {
-    const r = await fetch("/api/roadmap");
+    const [r, m] = await Promise.all([fetch("/api/roadmap"), fetch("/api/meetings")]);
     if (!r.ok) { setError("Could not load the roadmap."); return; }
     const d = await r.json();
     setQuarters(d.quarters); setItems(d.items); setWeeks(d.weeks);
+    setMonths(d.months ?? []); setThresholds(d.thresholds ?? []); setTests(d.tests ?? []);
+    if (m.ok) setMeetings(await m.json());
   };
   useEffect(() => { if (ready) load(); }, [ready]);
 
   const current = quarters.find((q) => q.isCurrent) ?? quarters[0];
 
-  // Blocked is a status, not a stored view — an item is blocked wherever it lives.
+  const owners = useMemo(
+    () => ["Everyone", ...Array.from(new Set(items.map((i) => i.owner))).sort()],
+    [items]
+  );
+  const byOwner = (list: Item[]) => (who === "Everyone" ? list : list.filter((i) => i.owner === who));
+
   const visible = useMemo(() => {
-    if (view === "Blocked") return items.filter((i) => i.status === "Blocked");
-    return items.filter((i) => i.view === view);
-  }, [items, view]);
+    const base = view === "Blocked"
+      ? items.filter((i) => i.status === "Blocked")
+      : items.filter((i) => i.view === view);
+    return byOwner(base);
+  }, [items, view, who]);
 
-  const patch = async (id: string, body: Partial<Item>) => {
+  const call = async (url: string, method: string, body?: unknown) => {
     setError("");
-    const r = await fetch(`/api/items/${id}`, {
-      method: "PATCH",
+    const r = await fetch(url, {
+      method,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: body === undefined ? undefined : JSON.stringify(body),
     });
-    if (!r.ok) { setError((await r.json()).error ?? "Could not save."); return; }
-    load();
-  };
-
-  const remove = async (id: string) => {
-    await fetch(`/api/items/${id}`, { method: "DELETE" });
-    load();
-  };
-
-  const scoreKr = async (id: string, score: string) => {
-    setError("");
-    const r = await fetch(`/api/krs/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ score: score === "" ? null : score }),
-    });
-    if (!r.ok) { setError((await r.json()).error ?? "Could not save."); return; }
-    load();
-  };
-
-  const toggleWeek = async (w: Week) => {
-    await fetch(`/api/weeks/${w.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ done: !w.done }),
-    });
-    load();
+    if (!r.ok && r.status !== 204) {
+      setError((await r.json().catch(() => ({}))).error ?? "Could not save.");
+      return false;
+    }
+    await load();
+    return true;
   };
 
   if (!ready) return null;
 
-  const done = items.filter((i) => i.status === "Done").length;
   const blocked = items.filter((i) => i.status === "Blocked").length;
+  const openThisWeek = byOwner(items.filter((i) => i.view === "ThisWeek" && i.status !== "Done")).length;
+  const unowned = items.filter((i) => i.owner === "Unassigned").length;
 
   return (
-    <div className="min-h-screen bg-[#FAFAF8]">
-      <header className="px-5 md:px-10 pt-8 md:pt-12 pb-6 max-w-[1180px] mx-auto">
-        <div className="flex items-baseline justify-between gap-4 flex-wrap">
-          <div>
-            <p className="text-[11px] tracking-[0.22em] uppercase text-[#a3a099] mb-2">
-              HighLife Operating System
-            </p>
-            <h1 className="text-[30px] md:text-[38px] leading-[1.05] font-semibold tracking-[-0.02em] text-[#1a1a1a]">
-              Roadmap
-            </h1>
-          </div>
-          {current && (
-            <div className="text-right">
-              <p className="text-[11px] tracking-[0.16em] uppercase text-[#a3a099]">{current.name}</p>
-              <p className="text-[15px] text-[#4a4740] mt-1">{current.dates}</p>
-            </div>
-          )}
-        </div>
+    <div className="min-h-screen bg-white">
+      <header className="px-5 md:px-10 pt-9 pb-7 max-w-[900px] mx-auto">
+        <Eyebrow>HighLife Operating System</Eyebrow>
+        <h1 className="text-[34px] md:text-[42px] leading-[1.03] font-semibold tracking-[-0.025em]">
+          Roadmap
+        </h1>
 
         {current && (
-          <div className="mt-8 flex flex-wrap gap-x-10 gap-y-4">
-            <Stat label="Quarter target" value={current.revenueTarget} />
-            <Stat label="Cumulative" value={current.cumulative} />
-            <Stat label="Done" value={String(done)} />
-            <Stat label="Blocked" value={String(blocked)} tone={blocked ? "warn" : undefined} />
-          </div>
+          <>
+            <p className="mt-4 text-[17px] leading-relaxed text-[#2e2e2e]">{current.focus}</p>
+            {/* Stacked rows, not a four-across strip. On a phone that strip
+                wrapped mid-label and was the worst of the readability problem. */}
+            <dl className="mt-7 divide-y divide-[#e2e2e2] border-y border-[#e2e2e2]">
+              <Row k={current.name} v={current.dates} />
+              <Row k="Target this period" v={current.revenueTarget} big />
+              <Row k="Cumulative by end of period" v={current.cumulative} big />
+              <Row k="Open this week" v={String(openThisWeek)} big />
+              {blocked > 0 && <Row k="Blocked" v={String(blocked)} big warn />}
+              {unowned > 0 && <Row k="Still need an owner" v={String(unowned)} big warn />}
+            </dl>
+          </>
         )}
-        {current && (
-          <p className="mt-6 text-[15px] leading-relaxed text-[#4a4740] max-w-[68ch]">{current.focus}</p>
-        )}
+
+        <div className="mt-7 flex flex-wrap items-center gap-3">
+          <Link
+            href="/plan"
+            className="min-h-[48px] px-5 rounded-lg bg-black text-white text-[16px] leading-[48px]"
+          >
+            Read the plan
+          </Link>
+          <select
+            value={who}
+            onChange={(e) => setWho(e.target.value)}
+            aria-label="Filter by owner"
+            className="min-h-[48px] rounded-lg px-4 text-[16px] bg-white shadow-[inset_0_0_0_1px_#e2e2e2] focus:outline-none focus:shadow-[inset_0_0_0_2px_#000]"
+          >
+            {owners.map((o) => <option key={o} value={o}>{o}</option>)}
+          </select>
+        </div>
       </header>
 
-      <nav className="sticky top-0 z-20 bg-[#FAFAF8]/92 backdrop-blur-sm border-b border-[#e8e5dd]">
-        <div className="max-w-[1180px] mx-auto px-5 md:px-10">
-          <div className="flex gap-7 overflow-x-auto no-scrollbar">
-            {VIEWS.map((v) => {
-              const n = v.key === "Blocked"
-                ? blocked
-                : items.filter((i) => i.view === v.key).length;
-              const active = view === v.key;
+      <nav className="sticky top-0 z-20 bg-white/95 backdrop-blur-sm border-y border-[#e2e2e2]">
+        <div className="max-w-[900px] mx-auto px-5 md:px-10">
+          <div className="flex gap-6 overflow-x-auto no-scrollbar">
+            {TABS.map((t) => {
+              const n = t.key === "Blocked" ? blocked
+                : ["Money", "Meetings", "QuarterlyOKR"].includes(t.key) ? 0
+                : byOwner(items.filter((i) => i.view === t.key)).length;
+              const active = view === t.key;
               return (
                 <button
-                  key={v.key}
-                  onClick={() => setView(v.key)}
-                  className={`shrink-0 py-4 text-[14px] whitespace-nowrap border-b-2 -mb-px transition-colors ${
-                    active
-                      ? "border-[#1a1a1a] text-[#1a1a1a] font-medium"
-                      : "border-transparent text-[#8a8780] hover:text-[#4a4740]"
+                  key={t.key}
+                  onClick={() => setView(t.key)}
+                  className={`shrink-0 min-h-[52px] text-[16px] whitespace-nowrap border-b-2 -mb-px ${
+                    active ? "border-black text-black font-medium" : "border-transparent text-[#6b6b6b]"
                   }`}
                 >
-                  {v.label}
-                  {n > 0 && <span className="ml-2 text-[12px] text-[#b0aca3] tabular-nums">{n}</span>}
+                  {t.label}
+                  {n > 0 && <span className="ml-2 text-[14px] text-[#9a9a9a] tabular-nums">{n}</span>}
                 </button>
               );
             })}
@@ -202,76 +256,55 @@ export default function RoadmapPage() {
         </div>
       </nav>
 
-      <main className="max-w-[1180px] mx-auto px-5 md:px-10 py-8 md:py-10">
-        <p className="text-[14px] text-[#8a8780] mb-7">
-          {VIEWS.find((v) => v.key === view)?.blurb}
+      <main className="max-w-[900px] mx-auto px-5 md:px-10 py-8 pb-24">
+        <p className="text-[16px] leading-relaxed text-[#6b6b6b] mb-7">
+          {TABS.find((t) => t.key === view)?.blurb}
+          {who !== "Everyone" && <span className="text-black"> Showing {who} only.</span>}
         </p>
 
-        <AnimatePresence>
-          {error && (
-            <motion.div
-              initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-              className="mb-6 px-4 py-3 rounded-lg bg-red-50 text-[14px] text-red-800"
-            >
-              {error}
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {error && (
+          <div className="mb-6 px-4 py-3.5 rounded-lg text-[16px] leading-relaxed shadow-[inset_0_0_0_1px_#e2e2e2]">
+            {error}
+          </div>
+        )}
 
-        {view === "QuarterlyOKR" ? (
-          <OkrView quarters={quarters} onScore={scoreKr} />
-        ) : (
+        {view === "QuarterlyOKR" && <Okrs quarters={quarters} call={call} />}
+        {view === "Money" && <Money months={months} thresholds={thresholds} tests={tests} call={call} />}
+        {view === "Meetings" && <MeetingsView meetings={meetings} months={months} thresholds={thresholds} call={call} />}
+
+        {!["QuarterlyOKR", "Money", "Meetings"].includes(view) && (
           <>
-            <ItemList items={visible} onPatch={patch} onDelete={remove} />
+            <Items items={visible} call={call} />
             {view !== "Blocked" && (
               <AddItem
-                view={view}
-                quarterId={current?.id ?? null}
-                open={adding}
-                setOpen={setAdding}
-                onDone={load}
-                onError={setError}
+                view={view} quarterId={current?.id ?? null}
+                open={adding} setOpen={setAdding} onDone={load} onError={setError}
               />
-            )}
-            {view === "Blocked" && visible.length === 0 && (
-              <Empty>Nothing is blocked. Mark an item blocked anywhere and it appears here.</Empty>
             )}
           </>
         )}
 
         {view === "ThisWeek" && weeks.length > 0 && (
           <section className="mt-16">
-            <h2 className="text-[11px] tracking-[0.2em] uppercase text-[#a3a099] mb-1">
-              First 12 weeks
-            </h2>
-            <p className="text-[14px] text-[#8a8780] mb-5">
-              The 90-day execution plan. One objective per week.
+            <Eyebrow>The first 12 weeks</Eyebrow>
+            <p className="text-[16px] leading-relaxed text-[#6b6b6b] mb-6">
+              One objective per week. Week 1 is already loaded into This week above.
             </p>
-            <div className="divide-y divide-[#ece9e1]">
+            <div className="divide-y divide-[#e2e2e2] border-t border-[#e2e2e2]">
               {weeks.map((w) => (
-                <button
-                  key={w.id}
-                  onClick={() => toggleWeek(w)}
-                  className="w-full text-left py-4 flex gap-4 md:gap-6 items-start group"
-                >
-                  <span
-                    className={`shrink-0 mt-[3px] w-[22px] h-[22px] rounded-full border flex items-center justify-center text-[11px] tabular-nums transition-colors ${
-                      w.done
-                        ? "bg-[#C8A45C] border-[#C8A45C] text-white"
-                        : "border-[#d8d4ca] text-[#a3a099] group-hover:border-[#b8b4aa]"
-                    }`}
-                  >
-                    {w.week}
-                  </span>
-                  <span className="min-w-0">
-                    <span className={`block text-[15px] ${w.done ? "text-[#b8b5ad] line-through" : "text-[#1a1a1a]"}`}>
+                <div key={w.id} className="py-5 flex gap-4">
+                  <Tick
+                    done={w.done} label={`Week ${w.week}`}
+                    onClick={() => call(`/api/weeks/${w.id}`, "PATCH", { done: !w.done })}
+                  />
+                  <div className="min-w-0">
+                    <p className={`text-[17px] leading-snug ${w.done ? "text-[#9a9a9a] line-through" : ""}`}>
+                      <span className="text-[#9a9a9a] tabular-nums mr-2">{w.week}</span>
                       {w.objective}
-                    </span>
-                    <span className="block text-[13px] leading-relaxed text-[#8a8780] mt-1">
-                      {w.deliverable}
-                    </span>
-                  </span>
-                </button>
+                    </p>
+                    <p className="mt-1.5 text-[15px] leading-relaxed text-[#6b6b6b]">{w.deliverable}</p>
+                  </div>
+                </div>
               ))}
             </div>
           </section>
@@ -281,151 +314,73 @@ export default function RoadmapPage() {
   );
 }
 
-function Stat({ label, value, tone }: { label: string; value: string; tone?: "warn" }) {
+function Row({ k, v, big, warn }: { k: string; v: string; big?: boolean; warn?: boolean }) {
   return (
-    <div>
-      <p className="text-[11px] tracking-[0.16em] uppercase text-[#a3a099] mb-1.5">{label}</p>
-      <p className={`text-[26px] leading-none tabular-nums ${tone === "warn" ? "text-red-700" : "text-[#1a1a1a]"}`}>
-        {value}
-      </p>
+    <div className="flex items-baseline justify-between gap-4 py-3.5">
+      <dt className="text-[15px] text-[#6b6b6b]">{k}</dt>
+      <dd className={`shrink-0 tabular-nums ${big ? "text-[22px]" : "text-[16px]"} ${warn ? "text-[#b00000]" : ""}`}>
+        {v}
+      </dd>
     </div>
   );
 }
 
-function Empty({ children }: { children: React.ReactNode }) {
-  return <p className="py-10 text-[15px] text-[#a3a099]">{children}</p>;
-}
-
-function ItemList({
-  items, onPatch, onDelete,
-}: {
-  items: Item[];
-  onPatch: (id: string, body: Partial<Item>) => void;
-  onDelete: (id: string) => void;
-}) {
+function Items({
+  items, call,
+}: { items: Item[]; call: (u: string, m: string, b?: unknown) => Promise<boolean> }) {
   const [open, setOpen] = useState<string | null>(null);
   if (items.length === 0) return <Empty>Nothing here yet.</Empty>;
 
   return (
-    <div className="divide-y divide-[#ece9e1]">
+    <div className="divide-y divide-[#e2e2e2] border-t border-[#e2e2e2]">
       {items.map((it) => (
-        <div key={it.id} className="py-4">
+        <div key={it.id} className="py-5">
           <div className="flex items-start gap-4">
-            {/* The dot stays 18px because a big circle looks clumsy next to the
-                text, but the tappable area around it is a full 44. */}
-            <button
-              onClick={() => onPatch(it.id, { status: it.status === "Done" ? "NotStarted" : "Done" })}
-              aria-label={it.status === "Done" ? "Mark not done" : "Mark done"}
-              className="shrink-0 -m-[13px] p-[13px] flex items-start"
-            >
-              <span
-                className={`block mt-[3px] w-[18px] h-[18px] rounded-full border transition-colors ${
-                  it.status === "Done"
-                    ? "bg-[#C8A45C] border-[#C8A45C]"
-                    : "border-[#d8d4ca] hover:border-[#b8b4aa]"
-                }`}
-              />
-            </button>
+            <Tick
+              done={it.status === "Done"}
+              label={it.status === "Done" ? "Mark not done" : "Mark done"}
+              onClick={() => call(`/api/items/${it.id}`, "PATCH", {
+                status: it.status === "Done" ? "NotStarted" : "Done",
+              })}
+            />
             <button onClick={() => setOpen(open === it.id ? null : it.id)} className="min-w-0 flex-1 text-left">
-              <span className={`block text-[16px] leading-snug ${STATUS_STYLE[it.status]} ${it.status === "Done" ? "" : "text-[#1a1a1a]"}`}>
+              <span className={`block text-[18px] leading-snug ${it.status === "Done" ? "text-[#9a9a9a] line-through" : ""}`}>
                 {it.title}
               </span>
-              <span className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-[#8a8780]">
-                <span className="text-[#4a4740]">{it.owner}</span>
-                <span className="text-[#d8d4ca]">·</span>
+              <span className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[15px] text-[#6b6b6b]">
+                <span className={it.owner === "Unassigned" ? "text-[#b00000]" : "text-black"}>
+                  {it.owner === "Unassigned" ? "Needs an owner" : it.owner}
+                </span>
+                <span className="text-[#c4c4c4]">·</span>
                 <span>{it.pillar}</span>
-                {it.priority === "Critical" && (
-                  <>
-                    <span className="text-[#d8d4ca]">·</span>
-                    <span className="text-[#C8A45C]">Critical</span>
-                  </>
-                )}
-                {it.dueDate && (
-                  <>
-                    <span className="text-[#d8d4ca]">·</span>
-                    <span className="tabular-nums">{fmtDate(it.dueDate)}</span>
-                  </>
-                )}
-                {it.status === "Blocked" && (
-                  <>
-                    <span className="text-[#d8d4ca]">·</span>
-                    <span className="text-red-700">Blocked</span>
-                  </>
-                )}
+                {it.priority === "Critical" && (<><span className="text-[#c4c4c4]">·</span><span className="text-black font-medium">Critical</span></>)}
+                {it.dueDate && (<><span className="text-[#c4c4c4]">·</span><span className="tabular-nums">{fmtDate(it.dueDate)}</span></>)}
+                {it.status === "Blocked" && (<><span className="text-[#c4c4c4]">·</span><span className="text-[#b00000]">Blocked</span></>)}
               </span>
             </button>
           </div>
 
-          <AnimatePresence>
-            {open === it.id && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
-                className="overflow-hidden"
+          {open === it.id && (
+            <div className="pt-6 sm:pl-[34px] grid gap-5 sm:grid-cols-2">
+              <Field label="Owner" value={it.owner} onSave={(v) => call(`/api/items/${it.id}`, "PATCH", { owner: v })} />
+              <Choice label="Pillar" value={it.pillar} options={PILLARS} onSave={(v) => call(`/api/items/${it.id}`, "PATCH", { pillar: v })} />
+              <Choice label="Priority" value={it.priority} options={PRIORITIES} onSave={(v) => call(`/api/items/${it.id}`, "PATCH", { priority: v })} />
+              <Choice label="Status" value={it.status} options={STATUSES} onSave={(v) => call(`/api/items/${it.id}`, "PATCH", { status: v })} />
+              <Field label="Due date" type="date" value={it.dueDate ? it.dueDate.slice(0, 10) : ""} onSave={(v) => call(`/api/items/${it.id}`, "PATCH", { dueDate: v || null })} />
+              <Field label="KPI / impact" value={it.kpi} onSave={(v) => call(`/api/items/${it.id}`, "PATCH", { kpi: v })} />
+              <Field label="Dependency" value={it.dependency} onSave={(v) => call(`/api/items/${it.id}`, "PATCH", { dependency: v })} className="sm:col-span-2" />
+              <Field label="Notes / evidence" multiline value={it.notes} onSave={(v) => call(`/api/items/${it.id}`, "PATCH", { notes: v })} className="sm:col-span-2" />
+              <button
+                onClick={() => call(`/api/items/${it.id}`, "DELETE")}
+                className="justify-self-start min-h-[44px] text-[15px] text-[#6b6b6b]"
               >
-                <div className="pt-5 pl-[34px] pb-1 grid gap-4 sm:grid-cols-2 max-w-[720px]">
-                  <Field label="Owner" value={it.owner} onSave={(v) => onPatch(it.id, { owner: v })} />
-                  <Select label="Pillar" value={it.pillar} options={PILLARS} onSave={(v) => onPatch(it.id, { pillar: v })} />
-                  <Select label="Priority" value={it.priority} options={PRIORITIES} onSave={(v) => onPatch(it.id, { priority: v as Item["priority"] })} />
-                  <Select label="Status" value={it.status} options={STATUSES} onSave={(v) => onPatch(it.id, { status: v as Item["status"] })} />
-                  <Field label="Due date" type="date" value={it.dueDate ? it.dueDate.slice(0, 10) : ""} onSave={(v) => onPatch(it.id, { dueDate: v || null })} />
-                  <Field label="KPI / impact" value={it.kpi} onSave={(v) => onPatch(it.id, { kpi: v })} />
-                  <Field label="Dependency" value={it.dependency} onSave={(v) => onPatch(it.id, { dependency: v })} className="sm:col-span-2" />
-                  <Field label="Notes / evidence" value={it.notes} onSave={(v) => onPatch(it.id, { notes: v })} className="sm:col-span-2" />
-                  <button
-                    onClick={() => onDelete(it.id)}
-                    className="justify-self-start text-[13px] text-[#b0aca3] hover:text-red-700 transition-colors"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                Delete
+              </button>
+            </div>
+          )}
         </div>
       ))}
     </div>
-  );
-}
-
-function Field({
-  label, value, onSave, type = "text", className = "",
-}: {
-  label: string; value: string; onSave: (v: string) => void; type?: string; className?: string;
-}) {
-  const [v, setV] = useState(value);
-  useEffect(() => setV(value), [value]);
-  return (
-    <label className={`block ${className}`}>
-      <span className="block text-[11px] tracking-[0.14em] uppercase text-[#a3a099] mb-1.5">{label}</span>
-      <input
-        type={type}
-        value={v}
-        onChange={(e) => setV(e.target.value)}
-        onBlur={() => v !== value && onSave(v)}
-        onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-        className="w-full min-h-[40px] bg-white rounded-lg px-3 py-2 text-[14px] text-[#1a1a1a] shadow-[0_1px_2px_rgba(0,0,0,0.04)] focus:outline-none focus:ring-2 focus:ring-[#C8A45C]/35"
-      />
-    </label>
-  );
-}
-
-function Select({
-  label, value, options, onSave,
-}: { label: string; value: string; options: string[]; onSave: (v: string) => void }) {
-  return (
-    <label className="block">
-      <span className="block text-[11px] tracking-[0.14em] uppercase text-[#a3a099] mb-1.5">{label}</span>
-      <select
-        value={value}
-        onChange={(e) => onSave(e.target.value)}
-        className="w-full min-h-[40px] bg-white rounded-lg px-3 py-2 text-[14px] text-[#1a1a1a] shadow-[0_1px_2px_rgba(0,0,0,0.04)] focus:outline-none focus:ring-2 focus:ring-[#C8A45C]/35"
-      >
-        {options.map((o) => <option key={o} value={o}>{o}</option>)}
-      </select>
-    </label>
   );
 }
 
@@ -440,157 +395,336 @@ function AddItem({
   const [due, setDue] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const submit = async () => {
-    setSaving(true);
-    onError("");
-    const r = await fetch("/api/items", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, owner, view, quarterId, dueDate: due || null }),
-    });
-    setSaving(false);
-    if (!r.ok) { onError((await r.json()).error ?? "Could not save."); return; }
-    setTitle(""); setOwner(""); setDue(""); setOpen(false);
-    onDone();
-  };
-
   if (!open) {
     return (
-      <button
-        onClick={() => setOpen(true)}
-        className="mt-4 min-h-[44px] pr-4 text-[14px] text-[#8a8780] hover:text-[#1a1a1a] transition-colors"
-      >
+      <button onClick={() => setOpen(true)} className="mt-7 min-h-[48px] text-[16px] text-[#6b6b6b]">
         + Add item
       </button>
     );
   }
 
+  const submit = async () => {
+    setSaving(true); onError("");
+    const r = await fetch("/api/items", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, owner, view, quarterId, dueDate: due || null }),
+    });
+    setSaving(false);
+    if (!r.ok) { onError((await r.json()).error ?? "Could not save."); return; }
+    setTitle(""); setOwner(""); setDue(""); setOpen(false); onDone();
+  };
+
   return (
-    <div className="mt-6 grid gap-3 sm:grid-cols-[1fr_180px_150px_auto] items-end max-w-[820px]">
-      <label className="block">
-        <span className="block text-[11px] tracking-[0.14em] uppercase text-[#a3a099] mb-1.5">Task</span>
-        <input
-          autoFocus value={title} onChange={(e) => setTitle(e.target.value)}
-          placeholder="Clear verb + outcome"
-          className="w-full min-h-[42px] bg-white rounded-lg px-3 py-2 text-[14px] shadow-[0_1px_2px_rgba(0,0,0,0.04)] focus:outline-none focus:ring-2 focus:ring-[#C8A45C]/35"
-        />
-      </label>
-      <label className="block">
-        <span className="block text-[11px] tracking-[0.14em] uppercase text-[#a3a099] mb-1.5">Owner</span>
-        <input
-          value={owner} onChange={(e) => setOwner(e.target.value)} placeholder="Required"
-          className="w-full min-h-[42px] bg-white rounded-lg px-3 py-2 text-[14px] shadow-[0_1px_2px_rgba(0,0,0,0.04)] focus:outline-none focus:ring-2 focus:ring-[#C8A45C]/35"
-        />
-      </label>
-      <label className="block">
-        <span className="block text-[11px] tracking-[0.14em] uppercase text-[#a3a099] mb-1.5">
-          Due{view === "ThisWeek" ? "" : " (optional)"}
-        </span>
-        <input
-          type="date" value={due} onChange={(e) => setDue(e.target.value)}
-          className="w-full min-h-[42px] bg-white rounded-lg px-3 py-2 text-[14px] shadow-[0_1px_2px_rgba(0,0,0,0.04)] focus:outline-none focus:ring-2 focus:ring-[#C8A45C]/35"
-        />
-      </label>
-      <div className="flex gap-2">
-        <button
-          onClick={submit} disabled={saving}
-          className="min-h-[42px] px-5 rounded-lg bg-[#C8A45C] text-white text-[14px] font-medium disabled:opacity-50"
-        >
-          {saving ? "Saving" : "Add"}
-        </button>
-        <button
-          onClick={() => { setOpen(false); onError(""); }}
-          className="min-h-[42px] px-3 text-[14px] text-[#8a8780]"
-        >
-          Cancel
-        </button>
+    <div className="mt-7 grid gap-4">
+      <Field label="Task" value={title} onSave={setTitle} placeholder="Clear verb and outcome" />
+      <Field label="Owner — required" value={owner} onSave={setOwner} placeholder="One name" />
+      <Field label={view === "ThisWeek" ? "Due date — required" : "Due date"} type="date" value={due} onSave={setDue} />
+      <div className="flex gap-3">
+        <Button kind="solid" onClick={submit} disabled={saving}>{saving ? "Saving" : "Add"}</Button>
+        <Button onClick={() => { setOpen(false); onError(""); }}>Cancel</Button>
       </div>
     </div>
   );
 }
 
-function OkrView({
-  quarters, onScore,
-}: { quarters: Quarter[]; onScore: (id: string, score: string) => void }) {
+function Okrs({
+  quarters, call,
+}: { quarters: Quarter[]; call: (u: string, m: string, b?: unknown) => Promise<boolean> }) {
   const [openQ, setOpenQ] = useState<string | null>(
     quarters.find((q) => q.isCurrent)?.id ?? quarters[0]?.id ?? null
   );
-
   return (
-    <div className="divide-y divide-[#ece9e1]">
+    <div className="divide-y divide-[#e2e2e2] border-t border-[#e2e2e2]">
       {quarters.map((q) => {
-        const expanded = openQ === q.id;
+        const open = openQ === q.id;
         const scored = q.objectives.flatMap((o) => o.keyResults).filter((k) => k.score !== null);
         const avg = scored.length
           ? (scored.reduce((s, k) => s + (k.score ?? 0), 0) / scored.length).toFixed(2)
           : null;
-
         return (
           <div key={q.id} className="py-5">
-            <button
-              onClick={() => setOpenQ(expanded ? null : q.id)}
-              className="w-full text-left flex items-baseline justify-between gap-4"
-            >
-              <span>
-                <span className="text-[17px] text-[#1a1a1a]">
+            <button onClick={() => setOpenQ(open ? null : q.id)} className="w-full text-left">
+              <span className="flex items-baseline justify-between gap-3">
+                <span className="text-[20px]">
                   {q.name}
-                  {q.isCurrent && (
-                    <span className="ml-3 text-[11px] tracking-[0.14em] uppercase text-[#C8A45C]">Current</span>
-                  )}
+                  {q.isCurrent && <span className="ml-3 text-[12px] tracking-[0.14em] uppercase text-[#6b6b6b]">Current</span>}
                 </span>
-                <span className="block text-[13px] text-[#8a8780] mt-1">{q.dates} · {q.revenueTarget}</span>
+                <span className="shrink-0 text-[15px] text-[#6b6b6b]">{open ? "−" : "+"}</span>
               </span>
-              <span className="shrink-0 text-[13px] text-[#a3a099] tabular-nums">
-                {avg ? `scored ${avg}` : `${q.cumulative} cum.`}
+              <span className="block mt-1.5 text-[15px] text-[#6b6b6b]">{q.dates}</span>
+              {/* Spelled out. "$52K cum." meant nothing at a glance. */}
+              <span className="block mt-1 text-[15px] text-[#6b6b6b]">
+                {q.revenueTarget} this period · {q.cumulative} cumulative
+                {avg && <> · scored {avg}</>}
               </span>
             </button>
 
-            <AnimatePresence>
-              {expanded && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.25, ease: [0.32, 0.72, 0, 1] }}
-                  className="overflow-hidden"
-                >
-                  <div className="pt-6 space-y-8">
-                    {q.objectives.map((o) => (
-                      <div key={o.id}>
-                        <p className="text-[11px] tracking-[0.16em] uppercase text-[#a3a099] mb-2">
-                          {OBJECTIVE_LABEL[o.kind] ?? o.kind}
-                        </p>
-                        <p className="text-[17px] leading-snug text-[#1a1a1a] mb-4 max-w-[62ch]">{o.title}</p>
-                        <div className="space-y-3">
-                          {o.keyResults.map((k) => (
-                            <div key={k.id} className="flex gap-4 items-start">
-                              <span className="shrink-0 w-[34px] pt-[3px] text-[12px] tabular-nums text-[#b0aca3]">
-                                {k.label}
-                              </span>
-                              <span className="flex-1 text-[14px] leading-relaxed text-[#4a4740] max-w-[70ch]">
-                                {k.text}
-                              </span>
-                              <input
-                                type="number" min="0" max="1" step="0.1"
-                                defaultValue={k.score ?? ""}
-                                placeholder="–"
-                                onBlur={(e) => {
-                                  const next = e.target.value;
-                                  if (next !== String(k.score ?? "")) onScore(k.id, next);
-                                }}
-                                aria-label={`Score for ${k.label}`}
-                                className="shrink-0 w-[62px] min-h-[44px] bg-white rounded-lg px-2 text-[13px] text-center tabular-nums shadow-[0_1px_2px_rgba(0,0,0,0.04)] focus:outline-none focus:ring-2 focus:ring-[#C8A45C]/35"
-                              />
-                            </div>
-                          ))}
+            {open && (
+              <div className="pt-7 space-y-9">
+                {q.objectives.map((o) => (
+                  <div key={o.id}>
+                    <Eyebrow>{OBJECTIVE_LABEL[o.kind] ?? o.kind}</Eyebrow>
+                    <p className="text-[19px] leading-snug mb-5">{o.title}</p>
+                    <div className="space-y-6">
+                      {o.keyResults.map((k) => (
+                        <div key={k.id}>
+                          <p className="text-[16px] leading-relaxed text-[#2e2e2e]">
+                            <span className="text-[#9a9a9a] tabular-nums mr-2">{k.label}</span>
+                            {k.text}
+                          </p>
+                          <div className="mt-2.5 flex items-center gap-3">
+                            <span className="text-[13px] tracking-[0.1em] uppercase text-[#9a9a9a]">Score</span>
+                            <input
+                              type="number" min="0" max="1" step="0.1"
+                              defaultValue={k.score ?? ""} placeholder="—"
+                              aria-label={`Score for ${k.label}`}
+                              onBlur={(e) => {
+                                if (e.target.value !== String(k.score ?? "")) {
+                                  call(`/api/krs/${k.id}`, "PATCH", { score: e.target.value });
+                                }
+                              }}
+                              className="w-[86px] min-h-[46px] rounded-lg px-2 text-[16px] text-center tabular-nums bg-white shadow-[inset_0_0_0_1px_#e2e2e2] focus:outline-none focus:shadow-[inset_0_0_0_2px_#000]"
+                            />
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                ))}
+              </div>
+            )}
           </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function Money({
+  months, thresholds, tests, call,
+}: {
+  months: Month[]; thresholds: Threshold[]; tests: Test[];
+  call: (u: string, m: string, b?: unknown) => Promise<boolean>;
+}) {
+  return (
+    <>
+      <section>
+        <Eyebrow>The monthly path</Eyebrow>
+        <p className="text-[16px] leading-relaxed text-[#6b6b6b] mb-6">
+          $250K cumulative is the floor. Manage toward $275K so one weak month does not break the goal.
+        </p>
+        <div className="divide-y divide-[#e2e2e2] border-y border-[#e2e2e2]">
+          {months.map((m) => (
+            <div key={m.id} className="py-4 flex items-baseline justify-between gap-4">
+              <span className="text-[16px]">{m.label}</span>
+              <span className="shrink-0 text-right tabular-nums">
+                <span className="text-[18px]">{money(m.target)}</span>
+                <span className="block text-[14px] text-[#6b6b6b]">{money(m.cumulative)} cumulative</span>
+              </span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="mt-16">
+        <Eyebrow>Monday thresholds</Eyebrow>
+        <p className="text-[16px] leading-relaxed text-[#6b6b6b] mb-6">
+          Recalibrate after 60–90 days of real data. Using the same definition every week matters more
+          than the exact number.
+        </p>
+        <div className="divide-y divide-[#e2e2e2] border-y border-[#e2e2e2]">
+          {thresholds.map((t) => (
+            <div key={t.id} className="py-4">
+              <p className="text-[17px]">{t.metric}</p>
+              <p className="mt-1.5 text-[15px] text-[#6b6b6b] tabular-nums">
+                Green {t.green} · Yellow {t.yellow} · Red {t.red}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="mt-16">
+        <Eyebrow>True after 90 days</Eyebrow>
+        <p className="text-[16px] leading-relaxed text-[#6b6b6b] mb-6">
+          The test of whether the first quarter actually worked.
+        </p>
+        <div className="divide-y divide-[#e2e2e2] border-t border-[#e2e2e2]">
+          {tests.map((t) => (
+            <div key={t.id} className="py-4 flex gap-4">
+              <Tick
+                done={t.passed} label={t.text}
+                onClick={() => call(`/api/tests/${t.id}`, "PATCH", { passed: !t.passed })}
+              />
+              <p className={`text-[17px] leading-relaxed ${t.passed ? "text-[#9a9a9a] line-through" : ""}`}>
+                {t.text}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+    </>
+  );
+}
+
+/** The one place colour is allowed. A card is a signal, not decoration. */
+const CARD_STYLE: Record<Exclude<Card, null>, string> = {
+  green: "bg-[#0b7a35] text-white",
+  yellow: "bg-[#c98a00] text-white",
+  red: "bg-[#b00000] text-white",
+};
+
+function Cards({
+  meeting, monthTarget, thresholds,
+}: { meeting: Meeting; monthTarget: number | null; thresholds: Threshold[] }) {
+  const graded = gradeAll(meeting, monthTarget);
+  const known = Object.values(graded).filter((g) => g.card !== null).length;
+
+  return (
+    <div className="mb-7">
+      <Eyebrow>Cards</Eyebrow>
+      {known === 0 && (
+        <p className="text-[16px] leading-relaxed text-[#6b6b6b] mb-4">
+          Fill in the scorecard below and the cards appear. Nothing is graded until the number exists —
+          a blank box is not a red.
+        </p>
+      )}
+      <div className="divide-y divide-[#e2e2e2] border-y border-[#e2e2e2]">
+        {thresholds.map((t) => {
+          const g = graded[t.metric];
+          if (!g) return null;
+          return (
+            <div key={t.id} className="py-3.5 flex items-center gap-4">
+              <span
+                className={`shrink-0 w-[64px] text-center text-[12px] tracking-[0.1em] uppercase rounded-md py-1.5 ${
+                  g.card ? CARD_STYLE[g.card] : "text-[#9a9a9a] shadow-[inset_0_0_0_1px_#e2e2e2]"
+                }`}
+              >
+                {g.card ?? "—"}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[16px]">{t.metric}</span>
+                <span className="block text-[14px] text-[#6b6b6b] tabular-nums">
+                  {g.display} · green {t.green}, yellow {t.yellow}, red {t.red}
+                </span>
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function MeetingsView({
+  meetings, months, thresholds, call,
+}: {
+  meetings: Meeting[]; months: Month[]; thresholds: Threshold[];
+  call: (u: string, m: string, b?: unknown) => Promise<boolean>;
+}) {
+  const [openKind, setOpenKind] = useState<string | null>("MondayBusiness");
+
+  return (
+    <div className="space-y-10">
+      {MEETINGS.map((def) => {
+        const logged = meetings.filter((m) => m.kind === def.kind);
+        const open = openKind === def.kind;
+        return (
+          <section key={def.kind} className="border-t border-[#e2e2e2] pt-6">
+            <button onClick={() => setOpenKind(open ? null : def.kind)} className="w-full text-left">
+              <span className="flex items-baseline justify-between gap-3">
+                <span className="text-[20px]">{def.label}</span>
+                <span className="shrink-0 text-[15px] text-[#6b6b6b]">{open ? "−" : "+"}</span>
+              </span>
+              <span className="block mt-1.5 text-[15px] text-[#6b6b6b]">
+                {def.when}
+                {logged.length > 0 && <> · {logged.length} logged</>}
+              </span>
+            </button>
+
+            {open && (
+              <div className="mt-6">
+                <Eyebrow>Agenda</Eyebrow>
+                <ul className="mb-7 space-y-2.5">
+                  {def.agenda.map((a) => (
+                    <li key={a} className="text-[16px] leading-relaxed text-[#2e2e2e] pl-5 -indent-5">
+                      <span className="text-[#c4c4c4]">— </span>{a}
+                    </li>
+                  ))}
+                </ul>
+
+                <Button onClick={() => call("/api/meetings", "POST", { kind: def.kind, date: today() })}>
+                  Log today&apos;s {def.label.toLowerCase()}
+                </Button>
+
+                <div className="mt-8 space-y-9">
+                  {logged.length === 0 && (
+                    <p className="text-[16px] text-[#6b6b6b]">
+                      Nothing recorded yet.
+                      {def.scorecard
+                        ? " Log one and the scorecard appears."
+                        : " Log one and write the prep brief before you meet."}
+                    </p>
+                  )}
+                  {logged.map((m) => (
+                    <div key={m.id} className="border-t border-[#e2e2e2] pt-5">
+                      <div className="flex items-baseline justify-between gap-3 mb-5">
+                        <p className="text-[17px] tabular-nums">
+                          {new Date(m.date).toLocaleDateString("en-US", {
+                            weekday: "short", month: "short", day: "numeric",
+                          })}
+                        </p>
+                        <button
+                          onClick={() => call(`/api/meetings/${m.id}`, "DELETE")}
+                          className="min-h-[44px] text-[15px] text-[#6b6b6b]"
+                        >
+                          Remove
+                        </button>
+                      </div>
+
+                      {def.scorecard ? (
+                        <>
+                          <Cards
+                            meeting={m}
+                            thresholds={thresholds}
+                            monthTarget={
+                              months.find((mo) => mo.label.includes(
+                                new Date(m.date).toLocaleDateString("en-US", { month: "short" })
+                              ) && mo.label.includes(String(new Date(m.date).getFullYear())))?.target ?? null
+                            }
+                          />
+                          <Eyebrow>Scorecard</Eyebrow>
+                          <div className="grid gap-4 sm:grid-cols-2 mb-6">
+                            {SCORECARD.map(([key, label]) => (
+                              <Field
+                                key={String(key)} label={label} type="number"
+                                value={m[key] === null ? "" : String(m[key])}
+                                onSave={(v) => call(`/api/meetings/${m.id}`, "PATCH", { [key]: v })}
+                              />
+                            ))}
+                          </div>
+                          <Field
+                            label="Decisions and blockers" multiline value={m.decisions}
+                            onSave={(v) => call(`/api/meetings/${m.id}`, "PATCH", { decisions: v })}
+                          />
+                        </>
+                      ) : (
+                        <Field
+                          label="Prep brief — write this before the meeting" multiline value={m.prep}
+                          placeholder={
+                            def.kind === "WednesdayTeam"
+                              ? "Bookings this week and next. Client or technical issues worth teaching from. Training topic. Intern assignments."
+                              : "Where do Music, Media and Merch rank this week? What is in the content bank? Next podcast, freestyle or commercial? Upcoming event and its business objective."
+                          }
+                          onSave={(v) => call(`/api/meetings/${m.id}`, "PATCH", { prep: v })}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
         );
       })}
     </div>

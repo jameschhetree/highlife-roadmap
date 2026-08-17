@@ -162,10 +162,27 @@ model ExecutionWeek {
   updatedAt DateTime @updatedAt
 }
 
-/// Section 15's weekly numbers. One row per Monday.
-model Scoreboard {
-  id           String   @id @default(cuid())
-  weekOf       DateTime @unique
+/// The four meetings from sections 10 and 12, each with its own job.
+enum MeetingKind {
+  MondayBusiness  // 10:00 AM, 60-75 min — scoreboard, funnel, ops, people, money, roadmap, commit
+  MondayMonthly   // first Monday, 90 min — replaces the weekly, does not add a meeting
+  WednesdayTeam   // 5:30 PM, 45-60 min — wins, bookings, training, accountability
+  SundayBrand     // 4:00 PM, 45-60 min — rank Music/Media/Merch, creative decisions
+}
+
+/// One occurrence of a meeting, with the numbers that were true that week.
+///
+/// Section 15's scoreboard lives here rather than in its own table because the
+/// plan never asks for numbers in the abstract — it asks what was on the board
+/// at the Monday meeting. Keeping them together means a week with no meeting is
+/// visibly a week with no scoreboard, which is the thing worth noticing.
+model Meeting {
+  id   String      @id @default(cuid())
+  kind MeetingKind
+  date DateTime
+  held Boolean     @default(false)
+
+  // Monday scorecard (section 22). Null means not filled in, not zero.
   cashCollected      Float?
   podcastRevenue     Float?
   podcastMrr         Float?
@@ -173,11 +190,80 @@ model Scoreboard {
   leads              Int?
   toursBooked        Int?
   toursShowed        Int?
-  firstSales         Int?
-  recurringConverted Int?
-  podcastRoomHours   Float?
-  editTurnaroundDays Float?
-  notes              String @default("")
+  tourCloseRate      Float?
+  recurringConversion Float?
+  roomHours          Float?
+  editTurnaround     Float?
+  roadmapCompletion  Float?
+
+  /// Wednesday and Sunday do not get a scoreboard — the numbers belong to
+  /// Monday. What they need is a prep brief written before the meeting, so the
+  /// room starts on decisions rather than on catching up.
+  prep      String @default("")
+  decisions String @default("") // decisions and blockers raised
+  notes     String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([kind, date])
+  @@index([date])
+}
+
+/// The plan itself, section by section, editable in the app.
+///
+/// Jaco asked for the document to live on the site as something he can navigate
+/// and change, rather than a PDF that goes stale in a chat thread. Storing it as
+/// sections beats modelling all 23 of them as bespoke features: the parts the
+/// app acts on (OKRs, SOPs, the scoreboard) are real tables, and the parts it
+/// only needs to state — the North Star, the guardrails, the ICP — are text he
+/// can edit when the strategy moves.
+model PlanSection {
+  id      String @id @default(cuid())
+  number  Int    @unique
+  title   String
+  body    String
+  pages   String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// The 17-month revenue path from section 03. Separate from Quarter because the
+/// plan tracks and reviews money monthly, not quarterly.
+model MonthTarget {
+  id         String @id @default(cuid())
+  key        String @unique // "2026-08"
+  label      String
+  target     Int    // dollars
+  cumulative Int
+  collected  Int?   // what actually came in
+  sortOrder  Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Section 15's Monday thresholds. Stored rather than hardcoded because the plan
+/// says to recalibrate them after 60-90 days of real data.
+model Threshold {
+  id        String @id @default(cuid())
+  metric    String @unique
+  green     String
+  yellow    String
+  red       String
+  sortOrder Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Section 20: what should be true after 90 days.
+model NinetyDayTest {
+  id        String  @id @default(cuid())
+  text      String
+  passed    Boolean @default(false)
+  sortOrder Int
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -246,7 +246,7 @@ const QUARTERS: {
         kind: "BrandFootprint",
         title: "Decide where the cash engine invests next",
         krs: [
-          "Choose 2028 priority investments across owned media, music projects, merch, events and physical capacity.",
+          "Choose 2028 priority investments across owned media, music projects, merch, events and physical capacity based on 2027 returns.",
           "Publish a new three-year roadmap that converts the five-year cultural vision into specific bets.",
         ],
       },
@@ -255,19 +255,19 @@ const QUARTERS: {
 ];
 
 // Section 18. Owners are the document's own suggestions.
-const SOPS: { n: number; title: string; owner: string }[] = [
+const SOPS: { n: number; title: string; owner: string; with?: string }[] = [
   { n: 1, title: "New lead response + qualification", owner: "Marketing/Sales" },
-  { n: 2, title: "Podcast tour experience", owner: "Jaco + Sales" },
+  { n: 2, title: "Podcast tour experience", owner: "Jaco", with: "Sales" },
   { n: 3, title: "Proposal + follow-up sequence", owner: "Marketing/Sales" },
-  { n: 4, title: "Recurring package close + autopay", owner: "Jaco + Sales" },
-  { n: 5, title: "Podcast client onboarding", owner: "Podcast Producer / JoJo" },
-  { n: 6, title: "Podcast room setup + preflight", owner: "JoJo / Engineers" },
+  { n: 4, title: "Recurring package close + autopay", owner: "Jaco", with: "Sales" },
+  { n: 5, title: "Podcast client onboarding", owner: "JoJo", with: "Podcast Producer, once hired" },
+  { n: 6, title: "Podcast room setup + preflight", owner: "JoJo", with: "Engineers" },
   { n: 7, title: "Session execution + client experience", owner: "Engineers" },
-  { n: 8, title: "File naming, backup + delivery handoff", owner: "JoJo / Editors" },
+  { n: 8, title: "File naming, backup + delivery handoff", owner: "JoJo", with: "Editors" },
   { n: 9, title: "Video edit + QA + revision", owner: "Editing lead" },
   { n: 10, title: "Recurring client success + renewal", owner: "Client Success" },
-  { n: 11, title: "Monthly event playbook", owner: "Leadership / Event owner" },
-  { n: 12, title: "Monday / Wednesday / Sunday meeting process", owner: "Jaco + JoJo" },
+  { n: 11, title: "Monthly event playbook", owner: "Jaco", with: "Event owner" },
+  { n: 12, title: "Monday / Wednesday / Sunday meeting process", owner: "Jaco", with: "JoJo" },
 ];
 
 // Section 20.
@@ -288,10 +288,10 @@ const WEEKS: { week: number; objective: string; deliverable: string }[] = [
 
 // Section 11 — owned content cadence, as recurring content slots.
 const CONTENT: { title: string; owner: string; kpi: string; notes: string }[] = [
-  { title: "HL Podcast — weekly episode", owner: "JoJo", kpi: "Cadence completed", notes: "Captured Sunday. Owned media, authority and short-form source." },
+  { title: "HL Podcast — weekly episode", owner: "Unassigned", kpi: "Cadence completed", notes: "Captured Sunday. Owned media, authority and short-form source. The plan does not name an owner for this — assign one." },
   { title: "Podcast commercials — 2x/month batch", owner: "Marketing/Sales", kpi: "Leads by source", notes: "Captured Sunday. Demand generation for the podcast revenue engine." },
-  { title: "HL Freestyle — 1x/month", owner: "JoJo", kpi: "Cadence completed", notes: "Captured Saturday. Music credibility, artist community." },
-  { title: "Monthly event", owner: "Jaco", kpi: "Revenue + leads", notes: "Every event needs one primary goal: revenue, leads, content or community." },
+  { title: "HL Freestyle — 1x/month", owner: "Unassigned", kpi: "Cadence completed", notes: "Captured Saturday. Music credibility, artist community." },
+  { title: "Monthly event", owner: "Unassigned", kpi: "Revenue + leads", notes: "Every event needs one primary goal: revenue, leads, content or community." },
 ];
 
 // Section 19 — the risks worth deciding about early, entered as open decisions.
@@ -300,19 +300,73 @@ const DECISIONS: { title: string; owner: string; notes: string; due?: string }[]
     title: "Rockville: keep, renew, expand, buy or exit?",
     owner: "Jaco",
     notes: "EOY 2026 decision gate. Needs trailing 3-month location revenue and contribution margin, unique clients, utilization, lease obligations and a 12-month forecast.",
-    due: "2026-12-15",
   },
   {
     title: "Confirm 15% first-sale commission structure after 60-90 days of data",
     owner: "Jaco",
     notes: "Pay on collected net service revenue after payment clears. If recurring packages become the priority, consider a one-time bonus for 3-month commitments rather than lifetime residuals.",
-    due: "2026-11-10",
   },
   {
     title: "Second podcast room — do not decide before capacity proof",
     owner: "JoJo",
     notes: "Trigger is prime-time utilization >75% for 8 weeks plus a meaningful waitlist. Guardrail 4: use utilization and waitlist data, not excitement.",
   },
+];
+
+
+// Section 03 — the monthly path. The plan reviews money monthly; quarters alone
+// hide a weak month until the quarter is already lost.
+const MONTHS: [string, string, number, number][] = [
+  ["2026-08", "Aug 10-31, 2026", 6000, 6000],
+  ["2026-09", "Sep 2026", 10000, 16000],
+  ["2026-10", "Oct 2026", 11000, 27000],
+  ["2026-11", "Nov 2026", 12000, 39000],
+  ["2026-12", "Dec 2026", 13000, 52000],
+  ["2027-01", "Jan 2027", 14000, 66000],
+  ["2027-02", "Feb 2027", 14000, 80000],
+  ["2027-03", "Mar 2027", 15000, 95000],
+  ["2027-04", "Apr 2027", 15000, 110000],
+  ["2027-05", "May 2027", 16000, 126000],
+  ["2027-06", "Jun 2027", 16000, 142000],
+  ["2027-07", "Jul 2027", 17000, 159000],
+  ["2027-08", "Aug 2027", 17000, 176000],
+  ["2027-09", "Sep 2027", 18000, 194000],
+  ["2027-10", "Oct 2027", 18000, 212000],
+  ["2027-11", "Nov 2027", 19000, 231000],
+  ["2027-12", "Dec 2027", 19000, 250000],
+];
+
+// Section 15 — Monday thresholds. Recalibrate after 60-90 days of real data.
+const THRESHOLDS: [string, string, string, string][] = [
+  ["Revenue vs monthly pace", ">=100% pace", "90%-99%", "<90%"],
+  ["Tour show rate", ">=70%", "60%-69%", "<60%"],
+  ["Tour close rate", ">=30%", "20%-29%", "<20%"],
+  ["Recurring conversion", ">=40%", "25%-39%", "<25%"],
+  ["Standard edit turnaround", "<=5-7 days", "8-9 days", "10+ days"],
+  ["Roadmap commitments", ">=85% on time", "70%-84%", "<70%"],
+];
+
+// Section 20 — what should be true after 90 days.
+const NINETY_DAY: string[] = [
+  "HighLife knows exactly where every podcast lead is in the funnel.",
+  "Tours have a repeatable discovery and closing flow.",
+  "Recurring packages are being sold and retention is measured.",
+  "Monday leadership decisions are based on one scoreboard.",
+  "The Roadmap contains current OKRs, owners and due dates.",
+  "At least the first 12 revenue-critical SOPs are drafted or actively being built.",
+  "Content and events run on cadence without stealing the company from revenue execution.",
+  "Leadership can say which channel, offer and client type creates the best economics.",
+];
+
+// Week 1 of section 20, broken into the commitments it actually requires. This
+// Week was empty on the first build: the plan was loaded and the work was not,
+// so the first screen Jaco opened was the one with nothing on it.
+const THIS_WEEK: { title: string; owner: string; pillar: string; kpi: string; due: string; priority?: string }[] = [
+  { title: "Baseline current revenue and podcast MRR", owner: "Jaco", pillar: "Finance", kpi: "Cash collected", due: "2026-08-24", priority: "Critical" },
+  { title: "Baseline lead sources, tours booked and show rate", owner: "Jaco", pillar: "Revenue", kpi: "Tours booked / showed", due: "2026-08-24", priority: "Critical" },
+  { title: "Baseline tour-to-first-sale close rate", owner: "Jaco", pillar: "Revenue", kpi: "Tour close rate", due: "2026-08-24", priority: "Critical" },
+  { title: "Baseline podcast room hours and edit turnaround", owner: "JoJo", pillar: "Operations", kpi: "Room hours / turnaround", due: "2026-08-24", priority: "Critical" },
+  { title: "Update the Roadmap with this week's commitments and owners", owner: "Jaco", pillar: "Operations", kpi: "Roadmap commitments completed", due: "2026-08-24" },
 ];
 
 async function main() {
@@ -322,6 +376,10 @@ async function main() {
   await prisma.objective.deleteMany();
   await prisma.quarter.deleteMany();
   await prisma.executionWeek.deleteMany();
+  await prisma.monthTarget.deleteMany();
+  await prisma.threshold.deleteMany();
+  await prisma.ninetyDayTest.deleteMany();
+  await prisma.planSection.deleteMany();
 
   const quarterIds: Record<string, string> = {};
 
@@ -362,7 +420,11 @@ async function main() {
         priority: s.n <= 7 ? ("Critical" as const) : ("Standard" as const),
         sortOrder: s.n,
         // The first seven are a Launch Sprint key result, not a nice-to-have.
-        notes: s.n <= 7 ? "Launch Sprint O2 KR3 — required before Q4." : "Section 18 priority order.",
+        notes: [
+          s.n <= 7 ? "Launch Sprint O2 KR3 — required before Q4." : "Section 18 priority order.",
+          s.with ? `Works with: ${s.with}.` : "",
+          "Format: purpose, trigger, owner, inputs, 5-12 steps, quality check, SLA, escalation, version.",
+        ].filter(Boolean).join(" "),
         kpi: "Roadmap commitments completed",
       })),
       ...CONTENT.map((c, i) => ({
@@ -377,6 +439,36 @@ async function main() {
         dueDate: d.due ? new Date(d.due) : null,
       })),
     ],
+  });
+
+  await prisma.monthTarget.createMany({
+    data: MONTHS.map(([key, label, target, cumulative], i) => ({
+      key, label, target, cumulative, sortOrder: i,
+    })),
+  });
+  await prisma.threshold.createMany({
+    data: THRESHOLDS.map(([metric, green, yellow, red], i) => ({ metric, green, yellow, red, sortOrder: i })),
+  });
+  await prisma.ninetyDayTest.createMany({
+    data: NINETY_DAY.map((text, i) => ({ text, sortOrder: i })),
+  });
+  console.log(`  ${MONTHS.length} monthly targets, ${THRESHOLDS.length} thresholds, ${NINETY_DAY.length} 90-day tests`);
+
+  // The plan document itself, section by section, editable in the app.
+  const sections = JSON.parse(
+    require("fs").readFileSync(__dirname + "/plan-sections.json", "utf8")
+  ) as { number: number; title: string; body: string; pages: string }[];
+  await prisma.planSection.createMany({ data: sections });
+  console.log(`  ${sections.length} plan sections`);
+
+  await prisma.item.createMany({
+    data: THIS_WEEK.map((t, i) => ({
+      title: t.title, owner: t.owner, view: "ThisWeek" as const,
+      pillar: t.pillar as never, quarterId: sprint,
+      priority: (t.priority ?? "Standard") as never,
+      kpi: t.kpi, dueDate: new Date(t.due), sortOrder: i,
+      notes: "Week 1 of the 90-day execution plan: install the scoreboard.",
+    })),
   });
 
   const counts = await prisma.item.groupBy({ by: ["view"], _count: true });

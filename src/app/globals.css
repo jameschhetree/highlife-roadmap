@@ -4,44 +4,42 @@
   --font-sans: var(--font-geist-sans);
 }
 
+/* Black and white, as asked. The only non-grey thing in the app is the red on a
+   blocked item, because "blocked" is the one state that should interrupt you. */
+:root {
+  --ink: #000000;
+  --body: #2e2e2e;
+  --muted: #6b6b6b;
+  --faint: #9a9a9a;
+  --hair: #e2e2e2;
+  --paper: #ffffff;
+  --wash: #f6f6f6;
+}
+
 body {
-  background: #FAFAF8;
-  color: #1a1a1a;
+  background: var(--paper);
+  color: var(--ink);
   font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  /* 17px base: the previous 14-15px body text was the "unreadable" complaint. */
+  font-size: 17px;
+  line-height: 1.55;
 }
 
-/* Scrollbar styling */
-::-webkit-scrollbar {
-  width: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: #d4d4d4;
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #a3a3a3;
-}
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d4d4d4; border-radius: 3px; }
 
-/* Inline editable fields */
-.editable-field {
-  cursor: text;
-  border-radius: 4px;
-  padding: 1px 4px;
-  margin: -1px -4px;
-  transition: background-color 0.15s ease;
-}
-.editable-field:hover {
-  background-color: rgba(0,0,0,0.04);
-}
-.editable-field:focus {
-  outline: none;
-  background-color: rgba(0,0,0,0.06);
-  box-shadow: 0 0 0 2px rgba(245,158,11,0.3);
-}
-
-/* Tab strip scrolls without a visible bar on mobile. */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Inputs inherit the page rather than looking like form controls dropped in. */
+input, select, textarea, button { font: inherit; color: inherit; }
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+input[type="number"] { -moz-appearance: textfield; }
+
+/* iOS zooms the page when a focused input is under 16px. */
+@media (max-width: 640px) {
+  input, select, textarea { font-size: 16px; }
+}
