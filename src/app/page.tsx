@@ -13,7 +13,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { isAdminAuthed } from "@/lib/admin-auth";
-import { Eyebrow, Empty, Field, Choice, Button, Tick, Tag, Reveal, Panel, BLUR } from "@/components/ui";
+import { Eyebrow, Empty, Field, Choice, Button, Tick, Tag, Reveal, Panel, SaveGroup, BLUR } from "@/components/ui";
 import { gradeAll, type Card } from "@/lib/grade";
 import { Assistant } from "@/components/assistant";
 import { ThemeToggle } from "@/components/theme";
@@ -676,7 +676,8 @@ function Items({
           </div>
 
           {open === it.id && (
-            <div className="pt-6 sm:pl-[34px] grid gap-5 sm:grid-cols-2">
+            <SaveGroup className="pt-6 sm:pl-[34px]">
+              <div className="grid gap-5 sm:grid-cols-2">
               <Field label="Owner" value={it.owner} onSave={(v) => call(`/api/items/${it.id}`, "PATCH", { owner: v })} />
               <Choice label="Pillar" value={it.pillar} options={PILLARS} onSave={(v) => call(`/api/items/${it.id}`, "PATCH", { pillar: v })} />
               <Choice label="Priority" value={it.priority} options={PRIORITIES} onSave={(v) => call(`/api/items/${it.id}`, "PATCH", { priority: v })} />
@@ -685,13 +686,14 @@ function Items({
               <Field label="KPI / impact" value={it.kpi} onSave={(v) => call(`/api/items/${it.id}`, "PATCH", { kpi: v })} />
               <Field label="Dependency" value={it.dependency} onSave={(v) => call(`/api/items/${it.id}`, "PATCH", { dependency: v })} className="sm:col-span-2" />
               <Field label="Notes / evidence" multiline value={it.notes} onSave={(v) => call(`/api/items/${it.id}`, "PATCH", { notes: v })} className="sm:col-span-2" />
+              </div>
               <button
                 onClick={() => call(`/api/items/${it.id}`, "DELETE")}
-                className="justify-self-start min-h-[44px] text-[15px] text-[var(--muted)]"
+                className="mt-6 ml-5 min-h-[44px] text-[15px] text-[var(--muted)]"
               >
                 Delete
               </button>
-            </div>
+            </SaveGroup>
           )}
         </div>
       ))}
@@ -1071,6 +1073,7 @@ function MeetingsView({
                             }
                           />
                           <Eyebrow>Scorecard</Eyebrow>
+                          <SaveGroup>
                           <div className="grid gap-4 sm:grid-cols-2 mb-6">
                             {SCORECARD.map(([key, label]) => (
                               <Field
@@ -1084,8 +1087,10 @@ function MeetingsView({
                             label="Decisions and blockers" multiline value={m.decisions}
                             onSave={(v) => call(`/api/meetings/${m.id}`, "PATCH", { decisions: v })}
                           />
+                          </SaveGroup>
                         </>
                       ) : (
+                        <SaveGroup>
                         <Field
                           label="Prep brief — write this before the meeting" multiline value={m.prep}
                           placeholder={
@@ -1095,6 +1100,7 @@ function MeetingsView({
                           }
                           onSave={(v) => call(`/api/meetings/${m.id}`, "PATCH", { prep: v })}
                         />
+                        </SaveGroup>
                       )}
                     </div>
                   ))}
@@ -1300,17 +1306,19 @@ function MonthlyRollup({
         </div>
       )}
 
-      <Field
-        label="Next month: one revenue target, one funnel target, one operating target"
-        multiline value={meeting.notes}
-        onSave={(v) => call(`/api/meetings/${meeting.id}`, "PATCH", { notes: v })}
-      />
-      <div className="mt-5">
+      <SaveGroup>
         <Field
-          label="Decisions and blockers" multiline value={meeting.decisions}
-          onSave={(v) => call(`/api/meetings/${meeting.id}`, "PATCH", { decisions: v })}
+          label="Next month: one revenue target, one funnel target, one operating target"
+          multiline value={meeting.notes}
+          onSave={(v) => call(`/api/meetings/${meeting.id}`, "PATCH", { notes: v })}
         />
-      </div>
+        <div className="mt-5">
+          <Field
+            label="Decisions and blockers" multiline value={meeting.decisions}
+            onSave={(v) => call(`/api/meetings/${meeting.id}`, "PATCH", { decisions: v })}
+          />
+        </div>
+      </SaveGroup>
     </>
   );
 }

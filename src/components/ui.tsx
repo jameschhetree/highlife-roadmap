@@ -2,7 +2,7 @@
 
 /** Shared pieces. Black, white and glass, matching highlifedashboard.com. */
 
-import { useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 
 /**
  * The blur, applied inline.
@@ -32,72 +32,115 @@ const INPUT =
   "focus:outline-none focus:border-white/40 focus:bg-white/[0.07]";
 
 /**
- * A field that saves, and says so.
+ * A field inside a SaveGroup.
  *
- * It saved on blur before, which works and looks like nothing happening — Jaco
- * asked for a save button because he could not tell whether a number had
- * landed. Blur still saves, so nothing is lost by tapping elsewhere, but a Save
- * button appears the moment the value differs and a tick confirms it went in.
+ * The field itself has no button. Putting one there gave every item five Save
+ * buttons and every scorecard twelve, which is what Jaco was looking at. It
+ * reports changes upward and the group carries a single Save at the end.
+ *
+ * Without a group it falls back to saving on blur, so a field used on its own
+ * still works.
  */
+/**
+ * One Save button for everything inside it.
+ *
+ * Fields report a pending change on edit and the group commits them together.
+ *
+ * Deliberately driven by event handlers rather than by effects: an earlier
+ * version called setState from an effect on every render to track which fields
+ * were dirty, and it miscounted two edits as one and would not clear after
+ * saving. Reporting on change is both simpler and correct.
+ */
+type GroupApi = {
+  set: (key: string, dirty: boolean, commit: () => void) => void;
+};
+const SaveGroupContext = createContext<GroupApi | null>(null);
+
+export function SaveGroup({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  const pending = useRef(new Map<string, () => void>());
+  const [count, setCount] = useState(0);
+  const [saved, setSaved] = useState(false);
+
+  const api = useRef<GroupApi>({
+    set: (key, dirty, commit) => {
+      if (dirty) pending.current.set(key, commit);
+      else pending.current.delete(key);
+      setCount(pending.current.size);
+    },
+  }).current;
+
+  const save = () => {
+    for (const commit of pending.current.values()) commit();
+    pending.current.clear();
+    setCount(0);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2200);
+  };
+
+  return (
+    <SaveGroupContext.Provider value={api}>
+      <div className={className}>
+        {children}
+        <button
+          onClick={save}
+          disabled={count === 0}
+          className={`mt-6 min-h-[48px] px-6 rounded-full text-[16px] transition-opacity ${
+            count > 0
+              ? "bg-[var(--text)] text-[var(--bg)]"
+              : "bezel text-[var(--muted-3)] opacity-60 cursor-default"
+          }`}
+        >
+          {saved ? "Saved" : count > 0 ? `Save ${count} change${count === 1 ? "" : "s"}` : "Save"}
+        </button>
+      </div>
+    </SaveGroupContext.Provider>
+  );
+}
+
+let fieldSeq = 0;
+
 export function Field({
   label, value, onSave, type = "text", multiline = false, placeholder = "", className = "",
 }: {
   label?: string; value: string; onSave: (v: string) => void;
   type?: string; multiline?: boolean; placeholder?: string; className?: string;
 }) {
+  const group = useContext(SaveGroupContext);
+  const key = useRef(`f${++fieldSeq}`).current;
   const [v, setV] = useState(value);
-  const [saved, setSaved] = useState(false);
-  useEffect(() => { setV(value); setSaved(false); }, [value]);
+  useEffect(() => setV(value), [value]);
 
-  const dirty = v !== value;
-
-  const commit = () => {
-    if (!dirty) return;
-    onSave(v);
-    setSaved(true);
-    // Long enough to notice, short enough not to linger over the next edit.
-    setTimeout(() => setSaved(false), 2200);
+  const change = (next: string) => {
+    setV(next);
+    group?.set(key, next !== value, () => next !== value && onSave(next));
   };
+
+  const shared =
+    "w-full px-3.5 py-3 text-[16px] leading-relaxed rounded-[10px] " +
+    "bg-white/[0.04] border border-white/10 text-[var(--text)] placeholder:text-[var(--muted-3)] " +
+    "focus:outline-none focus:border-white/40";
 
   return (
     <label className={`block ${className}`}>
       {label && (
-        <span className="flex items-baseline justify-between gap-2 mb-2">
-          <span className="text-[11px] tracking-[0.14em] uppercase text-[var(--muted-3)]">{label}</span>
-          {saved && <span className="text-[11px] tracking-[0.1em] uppercase text-[var(--ok)]">saved</span>}
-        </span>
+        <span className="block text-[11px] tracking-[0.14em] uppercase text-[var(--muted-3)] mb-2">{label}</span>
       )}
       {multiline ? (
         <textarea
           value={v} placeholder={placeholder} rows={4}
-          onChange={(e) => setV(e.target.value)}
-          onBlur={commit}
-          className={`${INPUT} min-h-[120px] resize-y`}
+          onChange={(e) => change(e.target.value)}
+          // On its own, with no group to press, blur still saves.
+          onBlur={group ? undefined : () => v !== value && onSave(v)}
+          className={`${shared} min-h-[120px] resize-y`}
         />
       ) : (
         <input
           type={type} value={v} placeholder={placeholder}
-          onChange={(e) => setV(e.target.value)}
-          onBlur={commit}
-          onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-          className={`${INPUT} min-h-[48px]`}
+          onChange={(e) => change(e.target.value)}
+          onBlur={group ? undefined : () => v !== value && onSave(v)}
+          className={`${shared} min-h-[48px]`}
         />
       )}
-      {/* Always there. I had it appear only when something changed, on the
-          grounds that a button with nothing to save is furniture. Jaco asked
-          twice for it to be permanent, which settles it — it dims when there is
-          nothing to save rather than vanishing. */}
-      <button
-        onClick={(e) => { e.preventDefault(); commit(); }}
-        disabled={!dirty}
-        className={`mt-2 min-h-[44px] px-5 rounded-full text-[15px] transition-opacity ${
-          dirty
-            ? "bg-white text-black"
-            : "bezel text-[var(--muted-3)] opacity-60 cursor-default"
-        }`}
-      >
-        {saved ? "Saved" : "Save"}
-      </button>
     </label>
   );
 }
