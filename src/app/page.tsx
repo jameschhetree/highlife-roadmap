@@ -20,6 +20,7 @@ import { ThemeToggle } from "@/components/theme";
 import { guideFor } from "@/lib/today";
 import { suggest } from "@/lib/priorities";
 import { rollUp, collectedByMonth, monthUnderReview } from "@/lib/rollup";
+import { occurrenceToLog, nextOccurrence, pretty } from "@/lib/meetingDates";
 
 type View =
   | "ThisWeek" | "Meetings" | "QuarterlyOKR" | "Money" | "RevenueProject"
@@ -70,44 +71,63 @@ const TABS: { key: View; label: string; blurb: string }[] = [
   { key: "DecisionLog", label: "Decisions", blurb: "Rockville, hires, packages, room capacity." },
 ];
 
-const MEETINGS: { kind: string; label: string; when: string; agenda: string[]; scorecard: boolean }[] = [
+/**
+ * The meetings, with section 10's agenda detail rather than just its headings.
+ *
+ * The doc gives each block a duration and a list of what it covers. Only the
+ * headings were showing, which made the agenda a table of contents instead of
+ * something you can run a meeting from.
+ */
+const MEETINGS: {
+  kind: string; label: string; when: string;
+  agenda: { item: string; mins?: string; detail: string }[];
+  scorecard: boolean;
+}[] = [
   {
     kind: "MondayBusiness", label: "Monday business", when: "Mondays, 10:00 AM · 60–75 min", scorecard: true,
     agenda: [
-      "Scoreboard — 10 min · the week that just ended, not the week ahead",
-      "Sales funnel — 15 min", "Operations — 10 min",
-      "People — 5 min", "Money — 10 min", "Roadmap and SOPs — 10 min",
-      "Commit — 10 min · 3–5 critical commitments each, with a name and a date",
+      { item: "Scoreboard", mins: "10 min", detail: "Cash collected against target, podcast revenue and MRR, studio revenue, bookings, the major wins and misses. The week that just ended, not the week ahead." },
+      { item: "Sales funnel", mins: "15 min", detail: "Leads, tours booked and showed, proposals out, close rate, stuck deals, follow-up, the marketing report." },
+      { item: "Operations", mins: "10 min", detail: "Upcoming bookings, delivery backlog, client issues, engineer and room capacity, quality." },
+      { item: "People", mins: "5 min", detail: "Intern and team progress, staffing needs, accountability concerns." },
+      { item: "Money", mins: "10 min", detail: "Spend, ad budget, commissions, collections, anything unusual, cash needs." },
+      { item: "Roadmap and SOPs", mins: "10 min", detail: "Quarter OKRs, blocked tasks, SOP progress, decisions needed." },
+      { item: "Commit", mins: "10 min", detail: "Owner and due date for the three to five most important commitments each." },
     ],
   },
   {
     kind: "MondayMonthly", label: "Monthly review", when: "First Monday · 90 min", scorecard: true,
     agenda: [
-      "Revenue by line", "Podcast MRR entering and exiting the month",
-      "Sales funnel and which channel created it", "Marketing spend, CPL, CAC",
-      "Operations: utilization, turnaround, complaints", "Brand cadence and reach",
-      "People: who is carrying too much, who is ready for more",
-      "Finance: cash, receivables, upcoming obligations",
-      "Next month: one revenue target, one funnel target, one operating target",
+      { item: "Revenue", detail: "What did we collect, split by studio, podcast recording, post-production, on-location, events and merch?" },
+      { item: "Podcast MRR", detail: "How much contracted recurring value did we enter and exit the month with? How many active recurring clients?" },
+      { item: "Sales", detail: "How many leads, tours, shows, proposals, first sales and recurring conversions? Which channel created them?" },
+      { item: "Marketing", detail: "What did we spend? CPL, CAC, creative winners and losers, outbound performance, next tests." },
+      { item: "Operations", detail: "Room utilization, editing turnaround, revisions, complaints, late deliveries, capacity risks." },
+      { item: "Brand", detail: "Did we hit podcast, commercial, freestyle and event cadence? What created leads or meaningful reach?" },
+      { item: "People", detail: "Who is carrying too much? Who is ready for more responsibility? What training is needed?" },
+      { item: "Finance", detail: "Cash balance, receivables, commissions, upcoming fixed obligations, unusual spend." },
+      { item: "Next month", detail: "One revenue target, one funnel target, one operating target, and the key brand priorities." },
     ],
   },
   {
     kind: "WednesdayTeam", label: "Wednesday team", when: "Wednesdays, 5:30 PM · 45–60 min", scorecard: false,
     agenda: [
-      "Wins and recognition — 5 min", "This week and next week bookings and events — 10 min",
-      "Client-service or technical issues everyone can learn from — 10 min",
-      "Training topic or SOP of the week — 15 min",
-      "Intern assignments and accountability — 10 min", "Announcements and questions — 5 min",
+      { item: "Wins and recognition", mins: "5 min", detail: "Name what went well and who did it." },
+      { item: "Bookings and events", mins: "10 min", detail: "This week and next week, plus anything the team needs to prepare for." },
+      { item: "Client or technical issues", mins: "10 min", detail: "Only the ones everyone can learn something from." },
+      { item: "Training topic or SOP", mins: "15 min", detail: "The SOP of the week, taught rather than circulated." },
+      { item: "Intern assignments", mins: "10 min", detail: "Assignments, engineer accountability, team responsibilities." },
+      { item: "Announcements", mins: "5 min", detail: "Culture, questions, anything outstanding." },
     ],
   },
   {
     kind: "SundayBrand", label: "Sunday brand", when: "Sundays, 4:00 PM · 45–60 min", scorecard: false,
     agenda: [
-      "Rank Music, Media and Merch 1–3 for the coming week",
-      "Review what is in the content bank",
-      "Decide the next podcast, freestyle, commercial or campaign",
-      "Review the upcoming monthly event and its business objective",
-      "Make the decisions, assign owners, then stop before it becomes a second Monday",
+      { item: "Rank the pillars", detail: "Music, Media and Merch, one to three for the coming week, based on the quarter plan." },
+      { item: "Content bank", detail: "Review what is already shot and unpublished." },
+      { item: "Creative priorities", detail: "Decide the next HL Podcast, freestyle, commercial or campaign." },
+      { item: "The monthly event", detail: "Review the upcoming event and its primary business objective." },
+      { item: "Decide and assign", detail: "Make the creative decisions, give them owners, then stop before it becomes a second Monday." },
     ],
   },
 ];
@@ -975,23 +995,36 @@ function MeetingsView({
               </span>
               <span className="block mt-1.5 text-[15px] text-[#888]">
                 {def.when}
-                {logged.length > 0 && <> · {logged.length} logged</>}
+              </span>
+              {/* Dates, so it is obvious which occurrence is being logged and
+                  what happens next Monday. */}
+              <span className="block mt-1 text-[15px] text-[#666] tabular-nums">
+                {logged.length > 0
+                  ? <>Last logged {pretty(logged[0].date.slice(0, 10))} · </>
+                  : <>Nothing logged yet · </>}
+                next {pretty(nextOccurrence(def.kind))}
               </span>
             </button>
 
             {open && (
               <div className="mt-6">
                 <Eyebrow>Agenda</Eyebrow>
-                <ul className="mb-7 space-y-2.5">
+                <ul className="mb-7 space-y-4">
                   {def.agenda.map((a) => (
-                    <li key={a} className="text-[16px] leading-relaxed text-[#a0a0a0] pl-5 -indent-5">
-                      <span className="text-[#444]">— </span>{a}
+                    <li key={a.item}>
+                      <p className="text-[17px] leading-snug">
+                        {a.item}
+                        {a.mins && <span className="ml-2 text-[14px] text-[#666]">{a.mins}</span>}
+                      </p>
+                      <p className="mt-1 text-[15px] leading-relaxed text-[#888]">{a.detail}</p>
                     </li>
                   ))}
                 </ul>
 
-                <Button onClick={() => call("/api/meetings", "POST", { kind: def.kind, date: today() })}>
-                  Log today&apos;s {def.label.toLowerCase()}
+                {/* Logs the occurrence, not the day he happens to be sitting
+                    down. Monday's numbers entered on Wednesday belong to Monday. */}
+                <Button onClick={() => call("/api/meetings", "POST", { kind: def.kind, date: occurrenceToLog(def.kind) })}>
+                  Log {pretty(occurrenceToLog(def.kind))}
                 </Button>
 
                 <div className="mt-8 space-y-9">
