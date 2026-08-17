@@ -376,6 +376,52 @@ const THIS_WEEK: { title: string; owner: string; pillar: string; kpi: string; du
   { title: "Update the Roadmap with this week's commitments and owners", owner: "Jaco", pillar: "Operations", kpi: "Roadmap commitments completed", due: "2026-08-24" },
 ];
 
+// Section 08 — capacity triggers. Transcribed, including the two separate
+// utilization bands, which are different decisions at different thresholds.
+const CAPACITY: [string, string, string][] = [
+  ["Prime-time room utilization", ">60% for 8 consecutive weeks", "Raise/segment pricing, expand hours, tighten recurring reserved slots."],
+  ["Prime-time room utilization", ">75% for 8 weeks plus a meaningful waitlist", "Begin the second-room / alternate-space business case."],
+  ["Editing backlog", "Typical delivery repeatedly exceeds 7 business days", "Add contract editor capacity before adding more marketing volume."],
+  ["Revisions", ">20%-25% of jobs require avoidable rework", "Fix the pre-production brief, templates and approval process."],
+  ["Founder sales load", "Jaco spends >5 hours/week on routine follow-up for 4+ weeks", "Add a dedicated closer / pipeline coordinator."],
+  ["Client success load", "8-10+ recurring clients and missed follow-ups appear", "Assign a podcast producer / client success owner."],
+];
+
+// Section 16 — hiring triggers, with the plan's preferred structure first.
+const HIRING: [string, string, string][] = [
+  ["Bookkeeping / CPA", "Immediately, or as soon as monthly reporting is inconsistent", "Fractional bookkeeper plus CPA/tax advisor. Do not wait for a full-time finance hire."],
+  ["Pipeline coordinator / closer", "Tour volume stays high and routine follow-up consumes founder time", "Commission or part-time contractor with a clear CRM scorecard."],
+  ["Podcast producer / client success", "8-10+ recurring accounts, or follow-ups begin slipping", "Part-time contractor first, full-time when the economics support it."],
+  ["Editor bench", "Delivery pushes beyond 7 business days, or one editor becomes a bottleneck", "Contract bench with standardized templates and QA."],
+  ["Operations manager", "Revenue above $20K/month for several months and founders are still the routing layer", "Hire only after SOPs exist, so the role manages a system rather than chaos."],
+];
+
+// Section 05 — the recurring ladder, then the public à la carte stack.
+const OFFERS: { name: string; price: string; forWho: string; scope: string; pkg?: boolean }[] = [
+  { name: "Studio Session", price: "$300/hr", forWho: "One-off or trial clients", scope: "Video capture with the HighLife production team; raw files; upsell post-production." },
+  { name: "Biweekly Authority", price: "$1,750/mo", forWho: "Established professionals starting a serious show", scope: "2 x 1-hour video sessions, 2 full edits, 6 short clips total, reserved scheduling, standard delivery." },
+  { name: "Weekly Authority", price: "$3,250/mo", forWho: "Active brands and creators", scope: "4 x 1-hour sessions, 4 full edits, 12 short clips, audio polish, priority scheduling." },
+  { name: "Executive Media Engine", price: "$5,000+/mo", forWho: "HNW, political, medical, corporate or media clients", scope: "Weekly production plus expanded clip volume, strategy, distribution support, custom graphics and/or on-location options." },
+  { name: "Video podcast production", price: "from $300/hr", forWho: "Public rate", scope: "Premium capture product and top-of-funnel anchor.", pkg: false },
+  { name: "Audio podcast production", price: "from $100/hr", forWho: "Public rate", scope: "Lower-complexity option; not the main growth engine.", pkg: false },
+  { name: "Video editing", price: "$350 up to 60 min · $450 for 60-90 min", forWho: "Public rate", scope: "Highest-value post-production upsell and recurring deliverable.", pkg: false },
+  { name: "Audio editing", price: "$200 up to 60 min", forWho: "Public rate", scope: "Useful for audio distribution and polished deliverables.", pkg: false },
+  { name: "Mixing & mastering", price: "$200 up to 2 hours", forWho: "Public rate", scope: "Quality and consistency upsell.", pkg: false },
+  { name: "Short-form clips", price: "$150 for 3 clips", forWho: "Public rate", scope: "Growth deliverable; easy recurring bundle component.", pkg: false },
+  { name: "On-location recording", price: "Custom quote", forWho: "Corporate, event and executive", scope: "High-value corporate, event and executive opportunity.", pkg: false },
+];
+
+// Section 19 — risks with the mitigation the plan already chose.
+const RISKS: [string, string, string][] = [
+  ["Founder concentration", "Jaco and JoJo become the routing layer for every decision", "SOPs, role scorecards, the Roadmap, triggered contractor hires."],
+  ["Lead volume without sales discipline", "Many tours, few payments", "Same-day proposal, sales coaching, funnel KPIs and call/tour review."],
+  ["Sales without retention", "First-sale revenue rises but MRR stays flat", "Recurring offer, client-success cadence, reserved slots and a renewal process."],
+  ["Post-production bottleneck", "Late edits and revision chaos", "Editor bench, templates, briefs, QA and capacity thresholds."],
+  ["Too-broad ICP", "Ads generate low-budget or low-intent leads", "Qualifying language, persona-specific creative, lead scoring."],
+  ["Creative distraction", "Events, merch and media consume leadership time without returns", "Quarterly OKRs, the 65% growth allocation and event scorecards."],
+  ["Expansion too early", "A second room or major gear purchase drains cash", "Utilization trigger and a business case before capital spend."],
+];
+
 async function main() {
   console.log("Clearing previous roadmap structure…");
   await prisma.item.deleteMany();
@@ -387,6 +433,9 @@ async function main() {
   await prisma.threshold.deleteMany();
   await prisma.ninetyDayTest.deleteMany();
   await prisma.planSection.deleteMany();
+  await prisma.trigger.deleteMany();
+  await prisma.offer.deleteMany();
+  await prisma.risk.deleteMany();
 
   const quarterIds: Record<string, string> = {};
 
@@ -489,6 +538,27 @@ async function main() {
       notes: "Week 1 of the 90-day execution plan: install the scoreboard.",
     })),
   });
+
+  await prisma.trigger.createMany({
+    data: [
+      ...CAPACITY.map(([signal, condition, action], i) => ({
+        kind: "Capacity" as const, signal, condition, action, sortOrder: i,
+      })),
+      ...HIRING.map(([signal, condition, action], i) => ({
+        kind: "Hiring" as const, signal, condition, action, sortOrder: i,
+      })),
+    ],
+  });
+  await prisma.offer.createMany({
+    data: OFFERS.map((o, i) => ({
+      name: o.name, price: o.price, designedFor: o.forWho, scope: o.scope,
+      isPackage: o.pkg !== false, sortOrder: i,
+    })),
+  });
+  await prisma.risk.createMany({
+    data: RISKS.map(([risk, showsUpAs, mitigation], i) => ({ risk, showsUpAs, mitigation, sortOrder: i })),
+  });
+  console.log(`  ${CAPACITY.length + HIRING.length} triggers, ${OFFERS.length} offers, ${RISKS.length} risks`);
 
   const counts = await prisma.item.groupBy({ by: ["view"], _count: true });
   for (const c of counts) console.log(`  ${c.view}: ${c._count} items`);

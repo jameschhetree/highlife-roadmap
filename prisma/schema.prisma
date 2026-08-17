@@ -269,6 +269,66 @@ model NinetyDayTest {
   updatedAt DateTime @updatedAt
 }
 
+enum TriggerKind {
+  Capacity // section 08 — when to add hours, pricing, editors or a second room
+  Hiring   // section 16 — when a role becomes worth paying for
+}
+
+/// A condition that, once true, obliges a decision.
+///
+/// The plan states these as prose and prose gets forgotten. Held as rows they
+/// can be reviewed on a Monday and marked as firing, which is the difference
+/// between a trigger and a paragraph.
+model Trigger {
+  id        String      @id @default(cuid())
+  kind      TriggerKind
+  signal    String
+  condition String
+  action    String
+  /// Set when the condition is judged met. The plan's discipline is that the
+  /// action follows the trigger, not the mood of the room.
+  firing    Boolean     @default(false)
+  notes     String      @default("")
+  sortOrder Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// The recurring package architecture from section 05.
+///
+/// Prices are marked provisional until the cost study exists: the plan says not
+/// to finalise them before real editor hours, production labour, revisions,
+/// commission and payment fees are measured.
+model Offer {
+  id          String  @id @default(cuid())
+  name        String
+  price       String
+  designedFor String
+  scope       String
+  isPackage   Boolean @default(true) // false for the à la carte service stack
+  costStudied Boolean @default(false)
+  sortOrder   Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Section 19's risk register, with the mitigation the plan already chose.
+model Risk {
+  id         String  @id @default(cuid())
+  risk       String
+  showsUpAs  String
+  mitigation String
+  /// Whether the mitigation is actually in place, as opposed to written down.
+  mitigated  Boolean @default(false)
+  owner      String  @default("Unassigned")
+  sortOrder  Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model ChatLog {
   id        String   @id @default(cuid())
   role      String

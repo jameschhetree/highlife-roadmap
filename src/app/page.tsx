@@ -18,7 +18,7 @@ import { gradeAll, type Card } from "@/lib/grade";
 
 type View =
   | "ThisWeek" | "Meetings" | "QuarterlyOKR" | "Money" | "RevenueProject"
-  | "ContentCalendar" | "Event" | "SOP" | "Blocked" | "DecisionLog";
+  | "ContentCalendar" | "Event" | "SOP" | "Systems" | "Blocked" | "DecisionLog";
 
 type Item = {
   id: string; title: string; owner: string; pillar: string; view: string;
@@ -36,6 +36,9 @@ type Week = { id: string; week: number; objective: string; deliverable: string; 
 type Month = { id: string; label: string; target: number; cumulative: number };
 type Threshold = { id: string; metric: string; green: string; yellow: string; red: string };
 type Test = { id: string; text: string; passed: boolean };
+type Trigger = { id: string; kind: string; signal: string; condition: string; action: string; firing: boolean; notes: string };
+type Offer = { id: string; name: string; price: string; designedFor: string; scope: string; isPackage: boolean; costStudied: boolean };
+type Risk = { id: string; risk: string; showsUpAs: string; mitigation: string; mitigated: boolean; owner: string };
 type Meeting = {
   id: string; kind: string; date: string;
   cashCollected: number | null; podcastRevenue: number | null; podcastMrr: number | null;
@@ -54,6 +57,7 @@ const TABS: { key: View; label: string; blurb: string }[] = [
   { key: "ContentCalendar", label: "Content", blurb: "Podcast, commercial batches, freestyle, events." },
   { key: "Event", label: "Events", blurb: "Every event needs one primary KPI." },
   { key: "SOP", label: "SOPs", blurb: "Documented in the order revenue touches the work." },
+  { key: "Systems", label: "Systems", blurb: "Triggers, the offer ladder and the risk register. The conditions that oblige a decision." },
   { key: "Blocked", label: "Blocked", blurb: "Anything waiting on a decision, a person or a dependency." },
   { key: "DecisionLog", label: "Decisions", blurb: "Rockville, hires, packages, room capacity." },
 ];
@@ -135,6 +139,9 @@ export default function RoadmapPage() {
   const [thresholds, setThresholds] = useState<Threshold[]>([]);
   const [tests, setTests] = useState<Test[]>([]);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [systems, setSystems] = useState<{ triggers: Trigger[]; offers: Offer[]; risks: Risk[] }>(
+    { triggers: [], offers: [], risks: [] }
+  );
   const [error, setError] = useState("");
   const [adding, setAdding] = useState(false);
 
@@ -144,12 +151,15 @@ export default function RoadmapPage() {
   }, [router]);
 
   const load = async () => {
-    const [r, m] = await Promise.all([fetch("/api/roadmap"), fetch("/api/meetings")]);
+    const [r, m, sy] = await Promise.all([
+      fetch("/api/roadmap"), fetch("/api/meetings"), fetch("/api/systems"),
+    ]);
     if (!r.ok) { setError("Could not load the roadmap."); return; }
     const d = await r.json();
     setQuarters(d.quarters); setItems(d.items); setWeeks(d.weeks);
     setMonths(d.months ?? []); setThresholds(d.thresholds ?? []); setTests(d.tests ?? []);
     if (m.ok) setMeetings(await m.json());
+    if (sy.ok) setSystems(await sy.json());
   };
   useEffect(() => { if (ready) load(); }, [ready]);
 
@@ -237,6 +247,7 @@ export default function RoadmapPage() {
           <div className="flex gap-1 overflow-x-auto no-scrollbar">
             {TABS.map((t) => {
               const n = t.key === "Blocked" ? blocked
+                : t.key === "Systems" ? systems.triggers.filter((x) => x.firing).length
                 : ["Money", "Meetings", "QuarterlyOKR"].includes(t.key) ? 0
                 : byOwner(items.filter((i) => i.view === t.key)).length;
               const active = view === t.key;
@@ -277,8 +288,9 @@ export default function RoadmapPage() {
         {view === "QuarterlyOKR" && <Okrs quarters={quarters} call={call} />}
         {view === "Money" && <Money months={months} thresholds={thresholds} tests={tests} call={call} />}
         {view === "Meetings" && <MeetingsView meetings={meetings} months={months} thresholds={thresholds} call={call} />}
+        {view === "Systems" && <Systems data={systems} call={call} />}
 
-        {!["QuarterlyOKR", "Money", "Meetings"].includes(view) && (
+        {!["QuarterlyOKR", "Money", "Meetings", "Systems"].includes(view) && (
           <>
             <Items items={visible} call={call} />
             {view !== "Blocked" && (
@@ -733,6 +745,132 @@ function MeetingsView({
           </section>
         );
       })}
+    </div>
+  );
+}
+
+
+function Systems({
+  data, call,
+}: {
+  data: { triggers: Trigger[]; offers: Offer[]; risks: Risk[] };
+  call: (u: string, m: string, b?: unknown) => Promise<boolean>;
+}) {
+  const capacity = data.triggers.filter((t) => t.kind === "Capacity");
+  const hiring = data.triggers.filter((t) => t.kind === "Hiring");
+  const packages = data.offers.filter((o) => o.isPackage);
+  const rates = data.offers.filter((o) => !o.isPackage);
+
+  const TriggerList = ({ list }: { list: Trigger[] }) => (
+    <div className="divide-y divide-white/10 border-t border-white/10">
+      {list.map((t) => (
+        <div key={t.id} className="py-5 flex gap-4">
+          <Tick
+            done={t.firing} label={`${t.signal} firing`}
+            onClick={() => call(`/api/systems/trigger/${t.id}`, "PATCH", { firing: !t.firing })}
+          />
+          <div className="min-w-0">
+            <p className="text-[17px] leading-snug">
+              {t.signal}
+              {t.firing && <span className="ml-3 text-[13px] tracking-[0.12em] uppercase text-[#ff6b6b]">Firing</span>}
+            </p>
+            <p className="mt-1.5 text-[15px] leading-relaxed text-[#888]">{t.condition}</p>
+            {/* The action only matters once the condition is met, so it is shown
+                as the consequence rather than as another line of description. */}
+            <p className={`mt-2 text-[15px] leading-relaxed ${t.firing ? "text-white" : "text-[#666]"}`}>
+              → {t.action}
+            </p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  return (
+    <div className="space-y-16">
+      <Reveal>
+        <Eyebrow>Capacity triggers</Eyebrow>
+        <p className="text-[16px] leading-relaxed text-[#888] mb-5">
+          Tick one when the condition is true. The plan&apos;s discipline is that the action follows the
+          trigger, not the mood of the room.
+        </p>
+        <TriggerList list={capacity} />
+      </Reveal>
+
+      <Reveal>
+        <Eyebrow>Hiring triggers</Eyebrow>
+        <p className="text-[16px] leading-relaxed text-[#888] mb-5">
+          Grow leverage before hierarchy. Each of these names the structure to try first.
+        </p>
+        <TriggerList list={hiring} />
+      </Reveal>
+
+      <Reveal>
+        <Eyebrow>The offer ladder</Eyebrow>
+        <p className="text-[16px] leading-relaxed text-[#888] mb-5">
+          Prices stay provisional until the cost study exists — real editor hours, production labour,
+          revisions, commission and payment fees. Tick one once it has been costed.
+        </p>
+        <div className="divide-y divide-white/10 border-t border-white/10">
+          {packages.map((o) => (
+            <div key={o.id} className="py-5 flex gap-4">
+              <Tick
+                done={o.costStudied} label={`${o.name} costed`}
+                onClick={() => call(`/api/systems/offer/${o.id}`, "PATCH", { costStudied: !o.costStudied })}
+              />
+              <div className="min-w-0 flex-1">
+                <p className="flex flex-wrap items-baseline gap-x-3 text-[17px]">
+                  <span>{o.name}</span>
+                  <span className="tabular-nums text-[#a0a0a0]">{o.price}</span>
+                  {!o.costStudied && (
+                    <span className="text-[13px] tracking-[0.1em] uppercase text-[#666]">not costed</span>
+                  )}
+                </p>
+                <p className="mt-1.5 text-[15px] text-[#888]">{o.designedFor}</p>
+                <p className="mt-2 text-[15px] leading-relaxed text-[#666]">{o.scope}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <p className="mt-8 mb-4 text-[13px] tracking-[0.14em] uppercase text-[#666]">Public rates</p>
+        <div className="divide-y divide-white/10 border-t border-white/10">
+          {rates.map((o) => (
+            <div key={o.id} className="py-4 flex items-baseline justify-between gap-4">
+              <span className="text-[16px]">{o.name}</span>
+              <span className="shrink-0 text-[15px] tabular-nums text-[#a0a0a0]">{o.price}</span>
+            </div>
+          ))}
+        </div>
+      </Reveal>
+
+      <Reveal>
+        <Eyebrow>Risk register</Eyebrow>
+        <p className="text-[16px] leading-relaxed text-[#888] mb-5">
+          Tick a risk once its mitigation is actually in place, not once it is written down.
+        </p>
+        <div className="divide-y divide-white/10 border-t border-white/10">
+          {data.risks.map((r) => (
+            <div key={r.id} className="py-5 flex gap-4">
+              <Tick
+                done={r.mitigated} label={`${r.risk} mitigated`}
+                onClick={() => call(`/api/systems/risk/${r.id}`, "PATCH", { mitigated: !r.mitigated })}
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-[17px] leading-snug">{r.risk}</p>
+                <p className="mt-1.5 text-[15px] leading-relaxed text-[#888]">Shows up as: {r.showsUpAs}</p>
+                <p className="mt-2 text-[15px] leading-relaxed text-[#666]">{r.mitigation}</p>
+                <div className="mt-3 max-w-[240px]">
+                  <Field
+                    label="Owner" value={r.owner}
+                    onSave={(v) => call(`/api/systems/risk/${r.id}`, "PATCH", { owner: v })}
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Reveal>
     </div>
   );
 }
