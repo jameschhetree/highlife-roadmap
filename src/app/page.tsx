@@ -13,7 +13,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { isAdminAuthed } from "@/lib/admin-auth";
-import { Eyebrow, Empty, Field, Choice, Button, Tick } from "@/components/ui";
+import { Eyebrow, Empty, Field, Choice, Button, Tick, Tag, Reveal, Panel, BLUR } from "@/components/ui";
 import { gradeAll, type Card } from "@/lib/grade";
 
 type View =
@@ -190,19 +190,20 @@ export default function RoadmapPage() {
   const unowned = items.filter((i) => i.owner === "Unassigned").length;
 
   return (
-    <div className="min-h-screen bg-white">
-      <header className="px-5 md:px-10 pt-9 pb-7 max-w-[900px] mx-auto">
-        <Eyebrow>HighLife Operating System</Eyebrow>
-        <h1 className="text-[34px] md:text-[42px] leading-[1.03] font-semibold tracking-[-0.025em]">
+    <div className="min-h-screen bg-transparent">
+      <header className="px-5 md:px-10 pt-14 pb-10 max-w-[900px] mx-auto">
+        <Tag>HighLife Operating System</Tag>
+        <h1 className="text-[38px] md:text-[52px] leading-[1.02] font-semibold tracking-[-0.03em]">
           Roadmap
         </h1>
 
         {current && (
           <>
-            <p className="mt-4 text-[17px] leading-relaxed text-[#2e2e2e]">{current.focus}</p>
+            <p className="mt-4 text-[17px] leading-relaxed text-[#a0a0a0]">{current.focus}</p>
             {/* Stacked rows, not a four-across strip. On a phone that strip
                 wrapped mid-label and was the worst of the readability problem. */}
-            <dl className="mt-7 divide-y divide-[#e2e2e2] border-y border-[#e2e2e2]">
+            <Panel className="mt-8 px-5 md:px-6">
+            <dl className="divide-y divide-white/[0.08]">
               <Row k={current.name} v={current.dates} />
               <Row k="Target this period" v={current.revenueTarget} big />
               <Row k="Cumulative by end of period" v={current.cumulative} big />
@@ -210,30 +211,30 @@ export default function RoadmapPage() {
               {blocked > 0 && <Row k="Blocked" v={String(blocked)} big warn />}
               {unowned > 0 && <Row k="Still need an owner" v={String(unowned)} big warn />}
             </dl>
+            </Panel>
           </>
         )}
 
         <div className="mt-7 flex flex-wrap items-center gap-3">
-          <Link
-            href="/plan"
-            className="min-h-[48px] px-5 rounded-lg bg-black text-white text-[16px] leading-[48px]"
-          >
-            Read the plan
+          <Link href="/plan" className="inline-block">
+            <Button kind="solid" arrow>Read the plan</Button>
           </Link>
           <select
             value={who}
             onChange={(e) => setWho(e.target.value)}
             aria-label="Filter by owner"
-            className="min-h-[48px] rounded-lg px-4 text-[16px] bg-white shadow-[inset_0_0_0_1px_#e2e2e2] focus:outline-none focus:shadow-[inset_0_0_0_2px_#000]"
+            className="min-h-[48px] rounded-full px-5 text-[16px] bg-white/[0.04] border border-white/10 focus:outline-none focus:border-white/40"
           >
             {owners.map((o) => <option key={o} value={o}>{o}</option>)}
           </select>
         </div>
       </header>
 
-      <nav className="sticky top-0 z-20 bg-white/95 backdrop-blur-sm border-y border-[#e2e2e2]">
-        <div className="max-w-[900px] mx-auto px-5 md:px-10">
-          <div className="flex gap-6 overflow-x-auto no-scrollbar">
+      {/* The pill itself is what sticks. A full-width sticky wrapper is the
+          edge-to-edge bar the standard bans, even when what you see floats. */}
+      <nav className="px-3 md:px-8">
+        <div style={BLUR(24, true)} className="sticky top-3 z-30 w-fit max-w-full mx-auto pill-nav px-2">
+          <div className="flex gap-1 overflow-x-auto no-scrollbar">
             {TABS.map((t) => {
               const n = t.key === "Blocked" ? blocked
                 : ["Money", "Meetings", "QuarterlyOKR"].includes(t.key) ? 0
@@ -243,12 +244,17 @@ export default function RoadmapPage() {
                 <button
                   key={t.key}
                   onClick={() => setView(t.key)}
-                  className={`shrink-0 min-h-[52px] text-[16px] whitespace-nowrap border-b-2 -mb-px ${
-                    active ? "border-black text-black font-medium" : "border-transparent text-[#6b6b6b]"
+                  className={`shrink-0 min-h-[46px] px-4 my-1 rounded-full text-[15px] whitespace-nowrap
+                    transition-[background-color,color] duration-300 ${
+                    active ? "bg-white text-black" : "text-[#9a9a9a] hover:text-white hover:bg-white/[0.06]"
                   }`}
                 >
                   {t.label}
-                  {n > 0 && <span className="ml-2 text-[14px] text-[#9a9a9a] tabular-nums">{n}</span>}
+                  {n > 0 && (
+                    <span className={`ml-2 text-[13px] tabular-nums ${active ? "text-black/50" : "text-[#666]"}`}>
+                      {n}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -256,14 +262,14 @@ export default function RoadmapPage() {
         </div>
       </nav>
 
-      <main className="max-w-[900px] mx-auto px-5 md:px-10 py-8 pb-24">
-        <p className="text-[16px] leading-relaxed text-[#6b6b6b] mb-7">
+      <main className="max-w-[900px] mx-auto px-5 md:px-10 pt-12 pb-32">
+        <p className="text-[16px] leading-relaxed text-[#888] mb-7">
           {TABS.find((t) => t.key === view)?.blurb}
-          {who !== "Everyone" && <span className="text-black"> Showing {who} only.</span>}
+          {who !== "Everyone" && <span className="text-white"> Showing {who} only.</span>}
         </p>
 
         {error && (
-          <div className="mb-6 px-4 py-3.5 rounded-lg text-[16px] leading-relaxed shadow-[inset_0_0_0_1px_#e2e2e2]">
+          <div className="mb-6 px-4 py-3.5 rounded-xl text-[16px] leading-relaxed glass">
             {error}
           </div>
         )}
@@ -285,12 +291,12 @@ export default function RoadmapPage() {
         )}
 
         {view === "ThisWeek" && weeks.length > 0 && (
-          <section className="mt-16">
+          <Reveal className="mt-20 block">
             <Eyebrow>The first 12 weeks</Eyebrow>
-            <p className="text-[16px] leading-relaxed text-[#6b6b6b] mb-6">
+            <p className="text-[16px] leading-relaxed text-[#888] mb-6">
               One objective per week. Week 1 is already loaded into This week above.
             </p>
-            <div className="divide-y divide-[#e2e2e2] border-t border-[#e2e2e2]">
+            <div className="divide-y divide-white/10 border-t border-white/10">
               {weeks.map((w) => (
                 <div key={w.id} className="py-5 flex gap-4">
                   <Tick
@@ -298,16 +304,16 @@ export default function RoadmapPage() {
                     onClick={() => call(`/api/weeks/${w.id}`, "PATCH", { done: !w.done })}
                   />
                   <div className="min-w-0">
-                    <p className={`text-[17px] leading-snug ${w.done ? "text-[#9a9a9a] line-through" : ""}`}>
-                      <span className="text-[#9a9a9a] tabular-nums mr-2">{w.week}</span>
+                    <p className={`text-[17px] leading-snug ${w.done ? "text-[#666] line-through" : ""}`}>
+                      <span className="text-[#666] tabular-nums mr-2">{w.week}</span>
                       {w.objective}
                     </p>
-                    <p className="mt-1.5 text-[15px] leading-relaxed text-[#6b6b6b]">{w.deliverable}</p>
+                    <p className="mt-1.5 text-[15px] leading-relaxed text-[#888]">{w.deliverable}</p>
                   </div>
                 </div>
               ))}
             </div>
-          </section>
+          </Reveal>
         )}
       </main>
     </div>
@@ -317,8 +323,8 @@ export default function RoadmapPage() {
 function Row({ k, v, big, warn }: { k: string; v: string; big?: boolean; warn?: boolean }) {
   return (
     <div className="flex items-baseline justify-between gap-4 py-3.5">
-      <dt className="text-[15px] text-[#6b6b6b]">{k}</dt>
-      <dd className={`shrink-0 tabular-nums ${big ? "text-[22px]" : "text-[16px]"} ${warn ? "text-[#b00000]" : ""}`}>
+      <dt className="text-[15px] text-[#888]">{k}</dt>
+      <dd className={`shrink-0 tabular-nums ${big ? "text-[22px]" : "text-[16px]"} ${warn ? "text-[#ff6b6b]" : ""}`}>
         {v}
       </dd>
     </div>
@@ -332,7 +338,7 @@ function Items({
   if (items.length === 0) return <Empty>Nothing here yet.</Empty>;
 
   return (
-    <div className="divide-y divide-[#e2e2e2] border-t border-[#e2e2e2]">
+    <div className="divide-y divide-white/10 border-t border-white/10">
       {items.map((it) => (
         <div key={it.id} className="py-5">
           <div className="flex items-start gap-4">
@@ -344,18 +350,18 @@ function Items({
               })}
             />
             <button onClick={() => setOpen(open === it.id ? null : it.id)} className="min-w-0 flex-1 text-left">
-              <span className={`block text-[18px] leading-snug ${it.status === "Done" ? "text-[#9a9a9a] line-through" : ""}`}>
+              <span className={`block text-[18px] leading-snug ${it.status === "Done" ? "text-[#666] line-through" : ""}`}>
                 {it.title}
               </span>
-              <span className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[15px] text-[#6b6b6b]">
-                <span className={it.owner === "Unassigned" ? "text-[#b00000]" : "text-black"}>
+              <span className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[15px] text-[#888]">
+                <span className={it.owner === "Unassigned" ? "text-[#ff6b6b]" : "text-white"}>
                   {it.owner === "Unassigned" ? "Needs an owner" : it.owner}
                 </span>
-                <span className="text-[#c4c4c4]">·</span>
+                <span className="text-[#444]">·</span>
                 <span>{it.pillar}</span>
-                {it.priority === "Critical" && (<><span className="text-[#c4c4c4]">·</span><span className="text-black font-medium">Critical</span></>)}
-                {it.dueDate && (<><span className="text-[#c4c4c4]">·</span><span className="tabular-nums">{fmtDate(it.dueDate)}</span></>)}
-                {it.status === "Blocked" && (<><span className="text-[#c4c4c4]">·</span><span className="text-[#b00000]">Blocked</span></>)}
+                {it.priority === "Critical" && (<><span className="text-[#444]">·</span><span className="text-white font-medium">Critical</span></>)}
+                {it.dueDate && (<><span className="text-[#444]">·</span><span className="tabular-nums">{fmtDate(it.dueDate)}</span></>)}
+                {it.status === "Blocked" && (<><span className="text-[#444]">·</span><span className="text-[#ff6b6b]">Blocked</span></>)}
               </span>
             </button>
           </div>
@@ -372,7 +378,7 @@ function Items({
               <Field label="Notes / evidence" multiline value={it.notes} onSave={(v) => call(`/api/items/${it.id}`, "PATCH", { notes: v })} className="sm:col-span-2" />
               <button
                 onClick={() => call(`/api/items/${it.id}`, "DELETE")}
-                className="justify-self-start min-h-[44px] text-[15px] text-[#6b6b6b]"
+                className="justify-self-start min-h-[44px] text-[15px] text-[#888]"
               >
                 Delete
               </button>
@@ -397,7 +403,7 @@ function AddItem({
 
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)} className="mt-7 min-h-[48px] text-[16px] text-[#6b6b6b]">
+      <button onClick={() => setOpen(true)} className="mt-7 min-h-[48px] text-[16px] text-[#888]">
         + Add item
       </button>
     );
@@ -434,7 +440,7 @@ function Okrs({
     quarters.find((q) => q.isCurrent)?.id ?? quarters[0]?.id ?? null
   );
   return (
-    <div className="divide-y divide-[#e2e2e2] border-t border-[#e2e2e2]">
+    <div className="divide-y divide-white/10 border-t border-white/10">
       {quarters.map((q) => {
         const open = openQ === q.id;
         const scored = q.objectives.flatMap((o) => o.keyResults).filter((k) => k.score !== null);
@@ -447,13 +453,13 @@ function Okrs({
               <span className="flex items-baseline justify-between gap-3">
                 <span className="text-[20px]">
                   {q.name}
-                  {q.isCurrent && <span className="ml-3 text-[12px] tracking-[0.14em] uppercase text-[#6b6b6b]">Current</span>}
+                  {q.isCurrent && <span className="ml-3 text-[12px] tracking-[0.14em] uppercase text-[#888]">Current</span>}
                 </span>
-                <span className="shrink-0 text-[15px] text-[#6b6b6b]">{open ? "−" : "+"}</span>
+                <span className="shrink-0 text-[15px] text-[#888]">{open ? "−" : "+"}</span>
               </span>
-              <span className="block mt-1.5 text-[15px] text-[#6b6b6b]">{q.dates}</span>
+              <span className="block mt-1.5 text-[15px] text-[#888]">{q.dates}</span>
               {/* Spelled out. "$52K cum." meant nothing at a glance. */}
-              <span className="block mt-1 text-[15px] text-[#6b6b6b]">
+              <span className="block mt-1 text-[15px] text-[#888]">
                 {q.revenueTarget} this period · {q.cumulative} cumulative
                 {avg && <> · scored {avg}</>}
               </span>
@@ -468,12 +474,12 @@ function Okrs({
                     <div className="space-y-6">
                       {o.keyResults.map((k) => (
                         <div key={k.id}>
-                          <p className="text-[16px] leading-relaxed text-[#2e2e2e]">
-                            <span className="text-[#9a9a9a] tabular-nums mr-2">{k.label}</span>
+                          <p className="text-[16px] leading-relaxed text-[#a0a0a0]">
+                            <span className="text-[#666] tabular-nums mr-2">{k.label}</span>
                             {k.text}
                           </p>
                           <div className="mt-2.5 flex items-center gap-3">
-                            <span className="text-[13px] tracking-[0.1em] uppercase text-[#9a9a9a]">Score</span>
+                            <span className="text-[13px] tracking-[0.1em] uppercase text-[#666]">Score</span>
                             <input
                               type="number" min="0" max="1" step="0.1"
                               defaultValue={k.score ?? ""} placeholder="—"
@@ -483,7 +489,7 @@ function Okrs({
                                   call(`/api/krs/${k.id}`, "PATCH", { score: e.target.value });
                                 }
                               }}
-                              className="w-[86px] min-h-[46px] rounded-lg px-2 text-[16px] text-center tabular-nums bg-white shadow-[inset_0_0_0_1px_#e2e2e2] focus:outline-none focus:shadow-[inset_0_0_0_2px_#000]"
+                              className="w-[86px] min-h-[46px] rounded-lg px-2 text-[16px] text-center tabular-nums bg-white/[0.04] border border-white/10 focus:outline-none focus:border-white/40"
                             />
                           </div>
                         </div>
@@ -510,16 +516,16 @@ function Money({
     <>
       <section>
         <Eyebrow>The monthly path</Eyebrow>
-        <p className="text-[16px] leading-relaxed text-[#6b6b6b] mb-6">
+        <p className="text-[16px] leading-relaxed text-[#888] mb-6">
           $250K cumulative is the floor. Manage toward $275K so one weak month does not break the goal.
         </p>
-        <div className="divide-y divide-[#e2e2e2] border-y border-[#e2e2e2]">
+        <div className="divide-y divide-white/10 border-y border-white/10">
           {months.map((m) => (
             <div key={m.id} className="py-4 flex items-baseline justify-between gap-4">
               <span className="text-[16px]">{m.label}</span>
               <span className="shrink-0 text-right tabular-nums">
                 <span className="text-[18px]">{money(m.target)}</span>
-                <span className="block text-[14px] text-[#6b6b6b]">{money(m.cumulative)} cumulative</span>
+                <span className="block text-[14px] text-[#888]">{money(m.cumulative)} cumulative</span>
               </span>
             </div>
           ))}
@@ -528,15 +534,15 @@ function Money({
 
       <section className="mt-16">
         <Eyebrow>Monday thresholds</Eyebrow>
-        <p className="text-[16px] leading-relaxed text-[#6b6b6b] mb-6">
+        <p className="text-[16px] leading-relaxed text-[#888] mb-6">
           Recalibrate after 60–90 days of real data. Using the same definition every week matters more
           than the exact number.
         </p>
-        <div className="divide-y divide-[#e2e2e2] border-y border-[#e2e2e2]">
+        <div className="divide-y divide-white/10 border-y border-white/10">
           {thresholds.map((t) => (
             <div key={t.id} className="py-4">
               <p className="text-[17px]">{t.metric}</p>
-              <p className="mt-1.5 text-[15px] text-[#6b6b6b] tabular-nums">
+              <p className="mt-1.5 text-[15px] text-[#888] tabular-nums">
                 Green {t.green} · Yellow {t.yellow} · Red {t.red}
               </p>
             </div>
@@ -546,17 +552,17 @@ function Money({
 
       <section className="mt-16">
         <Eyebrow>True after 90 days</Eyebrow>
-        <p className="text-[16px] leading-relaxed text-[#6b6b6b] mb-6">
+        <p className="text-[16px] leading-relaxed text-[#888] mb-6">
           The test of whether the first quarter actually worked.
         </p>
-        <div className="divide-y divide-[#e2e2e2] border-t border-[#e2e2e2]">
+        <div className="divide-y divide-white/10 border-t border-white/10">
           {tests.map((t) => (
             <div key={t.id} className="py-4 flex gap-4">
               <Tick
                 done={t.passed} label={t.text}
                 onClick={() => call(`/api/tests/${t.id}`, "PATCH", { passed: !t.passed })}
               />
-              <p className={`text-[17px] leading-relaxed ${t.passed ? "text-[#9a9a9a] line-through" : ""}`}>
+              <p className={`text-[17px] leading-relaxed ${t.passed ? "text-[#666] line-through" : ""}`}>
                 {t.text}
               </p>
             </div>
@@ -569,9 +575,9 @@ function Money({
 
 /** The one place colour is allowed. A card is a signal, not decoration. */
 const CARD_STYLE: Record<Exclude<Card, null>, string> = {
-  green: "bg-[#0b7a35] text-white",
-  yellow: "bg-[#c98a00] text-white",
-  red: "bg-[#b00000] text-white",
+  green: "bg-[#0b7a35]/85 border border-[#16a34a]/40 text-white",
+  yellow: "bg-[#a37000]/85 border border-[#eab308]/40 text-white",
+  red: "bg-[#9b0000]/85 border border-[#ef4444]/45 text-white",
 };
 
 function Cards({
@@ -584,12 +590,12 @@ function Cards({
     <div className="mb-7">
       <Eyebrow>Cards</Eyebrow>
       {known === 0 && (
-        <p className="text-[16px] leading-relaxed text-[#6b6b6b] mb-4">
+        <p className="text-[16px] leading-relaxed text-[#888] mb-4">
           Fill in the scorecard below and the cards appear. Nothing is graded until the number exists —
           a blank box is not a red.
         </p>
       )}
-      <div className="divide-y divide-[#e2e2e2] border-y border-[#e2e2e2]">
+      <div className="divide-y divide-white/10 border-y border-white/10">
         {thresholds.map((t) => {
           const g = graded[t.metric];
           if (!g) return null;
@@ -597,14 +603,14 @@ function Cards({
             <div key={t.id} className="py-3.5 flex items-center gap-4">
               <span
                 className={`shrink-0 w-[64px] text-center text-[12px] tracking-[0.1em] uppercase rounded-md py-1.5 ${
-                  g.card ? CARD_STYLE[g.card] : "text-[#9a9a9a] shadow-[inset_0_0_0_1px_#e2e2e2]"
+                  g.card ? CARD_STYLE[g.card] : "text-[#666] border border-white/10"
                 }`}
               >
                 {g.card ?? "—"}
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block text-[16px]">{t.metric}</span>
-                <span className="block text-[14px] text-[#6b6b6b] tabular-nums">
+                <span className="block text-[14px] text-[#888] tabular-nums">
                   {g.display} · green {t.green}, yellow {t.yellow}, red {t.red}
                 </span>
               </span>
@@ -630,13 +636,13 @@ function MeetingsView({
         const logged = meetings.filter((m) => m.kind === def.kind);
         const open = openKind === def.kind;
         return (
-          <section key={def.kind} className="border-t border-[#e2e2e2] pt-6">
+          <section key={def.kind} className="border-t border-white/10 pt-6">
             <button onClick={() => setOpenKind(open ? null : def.kind)} className="w-full text-left">
               <span className="flex items-baseline justify-between gap-3">
                 <span className="text-[20px]">{def.label}</span>
-                <span className="shrink-0 text-[15px] text-[#6b6b6b]">{open ? "−" : "+"}</span>
+                <span className="shrink-0 text-[15px] text-[#888]">{open ? "−" : "+"}</span>
               </span>
-              <span className="block mt-1.5 text-[15px] text-[#6b6b6b]">
+              <span className="block mt-1.5 text-[15px] text-[#888]">
                 {def.when}
                 {logged.length > 0 && <> · {logged.length} logged</>}
               </span>
@@ -647,8 +653,8 @@ function MeetingsView({
                 <Eyebrow>Agenda</Eyebrow>
                 <ul className="mb-7 space-y-2.5">
                   {def.agenda.map((a) => (
-                    <li key={a} className="text-[16px] leading-relaxed text-[#2e2e2e] pl-5 -indent-5">
-                      <span className="text-[#c4c4c4]">— </span>{a}
+                    <li key={a} className="text-[16px] leading-relaxed text-[#a0a0a0] pl-5 -indent-5">
+                      <span className="text-[#444]">— </span>{a}
                     </li>
                   ))}
                 </ul>
@@ -659,7 +665,7 @@ function MeetingsView({
 
                 <div className="mt-8 space-y-9">
                   {logged.length === 0 && (
-                    <p className="text-[16px] text-[#6b6b6b]">
+                    <p className="text-[16px] text-[#888]">
                       Nothing recorded yet.
                       {def.scorecard
                         ? " Log one and the scorecard appears."
@@ -667,7 +673,7 @@ function MeetingsView({
                     </p>
                   )}
                   {logged.map((m) => (
-                    <div key={m.id} className="border-t border-[#e2e2e2] pt-5">
+                    <div key={m.id} className="border-t border-white/10 pt-5">
                       <div className="flex items-baseline justify-between gap-3 mb-5">
                         <p className="text-[17px] tabular-nums">
                           {new Date(m.date).toLocaleDateString("en-US", {
@@ -676,7 +682,7 @@ function MeetingsView({
                         </p>
                         <button
                           onClick={() => call(`/api/meetings/${m.id}`, "DELETE")}
-                          className="min-h-[44px] text-[15px] text-[#6b6b6b]"
+                          className="min-h-[44px] text-[15px] text-[#888]"
                         >
                           Remove
                         </button>

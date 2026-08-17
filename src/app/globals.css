@@ -4,42 +4,150 @@
   --font-sans: var(--font-geist-sans);
 }
 
-/* Black and white, as asked. The only non-grey thing in the app is the red on a
-   blocked item, because "blocked" is the one state that should interrupt you. */
+/*
+  Black and white with glass, matching highlifedashboard.com.
+  Tokens lifted from that build's tailwind config so the two apps look like one
+  company rather than two projects that happen to share a name.
+*/
 :root {
-  --ink: #000000;
-  --body: #2e2e2e;
-  --muted: #6b6b6b;
-  --faint: #9a9a9a;
-  --hair: #e2e2e2;
-  --paper: #ffffff;
-  --wash: #f6f6f6;
+  --bg: #000000;
+  --surface: #0a0a0a;
+  --card: #141414;
+  --card-2: #1a1a1a;
+  --line: #1f1f1f;
+  --line-2: #2a2a2a;
+  --text: #ffffff;
+  --muted: #a0a0a0;
+  --muted-2: #888888;
+  --muted-3: #666666;
 }
 
 body {
-  background: var(--paper);
-  color: var(--ink);
+  background: var(--bg);
+  color: var(--text);
   font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
-  /* 17px base: the previous 14-15px body text was the "unreadable" complaint. */
   font-size: 17px;
   line-height: 1.55;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* A very slow drift behind the glass. Without something moving underneath it,
+   a blur is just a grey box. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: -50%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 22% 28%, rgba(255, 255, 255, 0.05) 0%, transparent 45%),
+    radial-gradient(circle at 78% 68%, rgba(255, 255, 255, 0.035) 0%, transparent 45%),
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.02) 0%, transparent 60%);
+  animation: drift 26s ease-in-out infinite;
+}
+
+@keyframes drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%      { transform: translate(2%, -2%) scale(1.06); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body::before { animation: none; }
+}
+
+@layer utilities {
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+}
+
+/*
+  These live outside @layer utilities on purpose.
+  Inside the layer, Tailwind v4's own backdrop-filter composition wins the
+  cascade and strips the blur — the gradient and shadows applied while
+  backdrop-filter computed to `none`, so the glass was not glass. Declared here,
+  after the framework's layers, they hold.
+*/
+.bezel {
+  background: linear-gradient(135deg, rgba(255,255,255,0.09) 0%, rgba(255,255,255,0.03) 100%);
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.14),
+    inset 0 0 0 1px rgba(255,255,255,0.03),
+    0 12px 32px -12px rgba(0,0,0,0.9);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.pill-nav {
+  background: rgba(10,10,10,0.72);
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), 0 16px 40px -16px rgba(0,0,0,1);
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+  border-radius: 999px;
+}
+
+.glass {
+  background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%);
+  border: 1px solid rgba(255,255,255,0.1);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.glass-soft {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #d4d4d4; border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
 
-.no-scrollbar::-webkit-scrollbar { display: none; }
-.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+/* One easing for the whole app. Linear and ease-in-out are banned. */
+* { transition-timing-function: cubic-bezier(0.32, 0.72, 0, 1); }
 
-/* Inputs inherit the page rather than looking like form controls dropped in. */
-input, select, textarea, button { font: inherit; color: inherit; }
+/* `color: inherit` is deliberately NOT set on button here.
+   These rules are unlayered, and unlayered CSS beats every layered rule
+   regardless of specificity — so `color: inherit` on a bare element selector
+   silently overrode Tailwind's text-black and made the label on every white
+   pill white-on-white. The button was rendering; the text was invisible. */
+input, select, textarea { font: inherit; color: inherit; }
+button { font: inherit; }
 input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 input[type="number"] { -moz-appearance: textfield; }
 
+/* Dark form controls: the browser default is a white box that punches a hole in
+   the page. */
+input, select, textarea {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  border-radius: 12px;
+  transition: border-color .28s, background-color .28s;
+}
+input::placeholder, textarea::placeholder { color: var(--muted-3); }
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.07);
+}
+select option { background: #141414; color: #ffffff; }
+
 /* iOS zooms the page when a focused input is under 16px. */
 @media (max-width: 640px) {
   input, select, textarea { font-size: 16px; }
+}
+
+/* Sections fade up as they arrive. Applied by IntersectionObserver, so nothing
+   is hidden if the observer never runs. */
+.reveal { opacity: 0; transform: translateY(14px); }
+.reveal.in { opacity: 1; transform: none; transition: opacity .55s, transform .55s; }
+@media (prefers-reduced-motion: reduce) {
+  .reveal, .reveal.in { opacity: 1; transform: none; transition: none; }
 }
