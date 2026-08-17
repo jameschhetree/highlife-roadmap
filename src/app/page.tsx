@@ -15,6 +15,9 @@ import Link from "next/link";
 import { isAdminAuthed } from "@/lib/admin-auth";
 import { Eyebrow, Empty, Field, Choice, Button, Tick, Tag, Reveal, Panel, BLUR } from "@/components/ui";
 import { gradeAll, type Card } from "@/lib/grade";
+import { Assistant } from "@/components/assistant";
+import { guideFor } from "@/lib/today";
+import { suggest } from "@/lib/priorities";
 
 type View =
   | "ThisWeek" | "Meetings" | "QuarterlyOKR" | "Money" | "RevenueProject"
@@ -49,16 +52,19 @@ type Meeting = {
 };
 
 const TABS: { key: View; label: string; blurb: string }[] = [
+  // Ordered the way the plan runs, not alphabetically: today's work, then the
+  // meeting that sets it, then the money it serves, then the quarter it rolls
+  // up to, then the systems that watch it, then the working surfaces.
   { key: "ThisWeek", label: "This week", blurb: "Commitments due before next Monday. One owner, one date." },
   { key: "Meetings", label: "Meetings", blurb: "Monday carries the scorecard. Wednesday and Sunday get a prep brief." },
-  { key: "QuarterlyOKR", label: "OKRs", blurb: "Three company objectives per quarter. No more." },
   { key: "Money", label: "Money", blurb: "The monthly path to $250K, and the Monday thresholds." },
+  { key: "QuarterlyOKR", label: "OKRs", blurb: "Three company objectives per quarter. No more." },
+  { key: "Systems", label: "Systems", blurb: "Triggers, the offer ladder and the risk register. The conditions that oblige a decision." },
+  { key: "Blocked", label: "Blocked", blurb: "Anything waiting on a decision, a person or a dependency." },
   { key: "RevenueProject", label: "Revenue", blurb: "Offer, funnel, campaigns, partnerships, pricing tests." },
   { key: "ContentCalendar", label: "Content", blurb: "Podcast, commercial batches, freestyle, events." },
   { key: "Event", label: "Events", blurb: "Every event needs one primary KPI." },
   { key: "SOP", label: "SOPs", blurb: "Documented in the order revenue touches the work." },
-  { key: "Systems", label: "Systems", blurb: "Triggers, the offer ladder and the risk register. The conditions that oblige a decision." },
-  { key: "Blocked", label: "Blocked", blurb: "Anything waiting on a decision, a person or a dependency." },
   { key: "DecisionLog", label: "Decisions", blurb: "Rockville, hires, packages, room capacity." },
 ];
 
@@ -206,7 +212,24 @@ export default function RoadmapPage() {
 
   if (!ready) return null;
 
+  const guide = guideFor(new Date());
   const blocked = items.filter((i) => i.status === "Blocked").length;
+  const overdue = items.filter(
+    (i) => i.dueDate && i.status !== "Done" && Date.parse(i.dueDate) < Date.now()
+  ).length;
+  const priorities = suggest({
+    weekNumber: currentWeek?.week ?? null,
+    weekObjective: currentWeek?.objective ?? null,
+    weekLoaded: currentWeek ? items.some((i) => i.weekNumber === currentWeek.week) : true,
+    unowned: items.filter((i) => i.owner === "Unassigned").length,
+    blocked,
+    overdue,
+    firingTriggers: systems.triggers.filter((t) => t.firing).map((t) => ({ signal: t.signal, action: t.action })),
+    uncostedPackages: systems.offers.filter((o) => o.isPackage && !o.costStudied).length,
+    unmitigatedRisks: systems.risks.filter((r) => !r.mitigated).length,
+    sopsOutstanding: items.filter((i) => i.view === "SOP" && i.priority === "Critical" && i.status !== "Done").length,
+    monthLabel: null, monthTarget: null, collected: null,
+  });
   const openThisWeek = byOwner(items.filter((i) => i.view === "ThisWeek" && i.status !== "Done")).length;
   const unowned = items.filter((i) => i.owner === "Unassigned").length;
 
@@ -234,6 +257,45 @@ export default function RoadmapPage() {
             </dl>
             </Panel>
           </>
+        )}
+
+        {/* What the plan says to do today, so nobody has to work out which part
+            of a 38-page document applies on a Wednesday. */}
+        <Panel className="mt-8 px-5 py-5">
+          <p className="text-[11px] tracking-[0.18em] uppercase text-[#666] mb-2">
+            {guide.weekday}
+          </p>
+          <p className="text-[19px] leading-snug mb-2">{guide.headline}</p>
+          <p className="text-[15px] leading-relaxed text-[#888]">{guide.detail}</p>
+          {guide.goTo && (
+            <div className="mt-5">
+              <Button arrow onClick={() => setView(guide.goTo as View)}>{guide.goToLabel}</Button>
+            </div>
+          )}
+        </Panel>
+
+        {priorities.length > 0 && (
+          <Panel className="mt-4 px-5 py-5">
+            <p className="text-[11px] tracking-[0.18em] uppercase text-[#666] mb-3">
+              What this week should be about
+            </p>
+            <ol className="space-y-4">
+              {priorities.map((s, i) => (
+                <li key={i}>
+                  <button
+                    onClick={() => s.goTo && setView(s.goTo as View)}
+                    className="text-left w-full min-h-[44px]"
+                  >
+                    <span className="block text-[17px] leading-snug">
+                      <span className="text-[#666] tabular-nums mr-2">{i + 1}</span>
+                      {s.text}
+                    </span>
+                    <span className="block mt-1 text-[14px] leading-relaxed text-[#666]">{s.why}</span>
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </Panel>
         )}
 
         <div className="mt-7 flex flex-wrap items-center gap-3">
@@ -373,6 +435,8 @@ export default function RoadmapPage() {
           </Reveal>
         )}
       </main>
+
+      <Assistant onChanged={load} />
     </div>
   );
 }

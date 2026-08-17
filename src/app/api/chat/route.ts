@@ -93,7 +93,19 @@ For questions ("what is blocked?", "what does JoJo owe this week?") return actio
       messages: [{ role: "user", content: message }],
     });
 
-    const text = response.content[0].type === "text" ? response.content[0].text : "";
+    // Take the first text block, not block zero. This model returns an empty
+    // leading block and puts the answer in the one after it, so indexing at
+    // zero produced a 200 with an empty reply and no error anywhere — the
+    // assistant looked broken in a way nothing logged.
+    const text = response.content
+      .flatMap((c) => (c.type === "text" ? [c.text] : []))
+      .join("")
+      .trim();
+
+    if (!text) {
+      console.error("[chat] model returned no text", JSON.stringify(response.content).slice(0, 200));
+      return Response.json({ error: "The assistant returned nothing. Try again." }, { status: 502 });
+    }
 
     let parsed: { reply: string; actions: Action[] };
     try {
