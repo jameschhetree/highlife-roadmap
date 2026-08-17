@@ -1572,8 +1572,6 @@ function SopEditor({
                 {item.sop!.published ? " · published" : " · draft"}
               </span>
             </div>
-            {linked && <DocGaps itemId={item.id} />}
-
             {linked && (
               <div className="mb-6">
                 <div className="rounded-xl overflow-hidden border border-white/10 bg-white">
@@ -1594,6 +1592,10 @@ function SopEditor({
                 </a>
               </div>
             )}
+
+            {/* Recommendations sit under the document, the way the plan page
+                reads: the thing itself first, then what to do about it. */}
+            {linked && <DocGaps itemId={item.id} />}
 
             {SOP_FIELDS.filter(([k]) => (item.sop![k] as string)?.trim()).map(([k, label]) => (
               <div key={k} className="mb-5">
@@ -1926,9 +1928,13 @@ function DocGaps({ itemId }: { itemId: string }) {
     <div className="mb-6">
       {!result && (
         <>
-          <Button onClick={run} disabled={busy}>
-            {busy ? "Reading the doc…" : "What is this doc missing?"}
+          <Button onClick={run} disabled={busy} kind="solid" arrow>
+            {busy ? "Scanning the doc…" : "Run scan"}
           </Button>
+          <p className="mt-3 text-[15px] leading-relaxed text-[var(--muted)]">
+            Reads the doc against the house format and recommends what to add. Run it again whenever
+            you change the document.
+          </p>
           {error && <p className="mt-3 text-[15px] text-[var(--alert)]">{error}</p>}
         </>
       )}
@@ -1946,7 +1952,9 @@ function DocGaps({ itemId }: { itemId: string }) {
           )}
 
           {result.gaps.length === 0 ? (
-            <p className="text-[16px] leading-relaxed">Nothing missing. This one is complete.</p>
+            <p className="text-[16px] leading-relaxed">
+              Nothing missing — this doc covers the whole format. Ready to publish.
+            </p>
           ) : (
             <div className="space-y-6">
               {result.gaps.map((g) => (
@@ -1983,8 +1991,11 @@ function DocGaps({ itemId }: { itemId: string }) {
             </div>
           )}
 
-          <div className="mt-6">
-            <Button onClick={run} disabled={busy}>{busy ? "Reading…" : "Check again"}</Button>
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            <Button onClick={run} disabled={busy}>{busy ? "Scanning…" : "Run scan again"}</Button>
+            <span className="text-[14px] text-[var(--muted-3)]">
+              after you edit the doc
+            </span>
           </div>
         </Panel>
       )}
