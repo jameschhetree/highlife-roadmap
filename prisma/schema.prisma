@@ -140,12 +140,18 @@ model Item {
   /// not another row in this table.
   dependency String @default("")
 
+  /// Which of the twelve execution weeks this came from, if it was loaded from
+  /// the plan rather than typed. Lets the app tell "already pulled in" from
+  /// "not started", so loading a week twice cannot duplicate it.
+  weekNumber Int?
+
   sortOrder Int @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([view, status])
+  @@index([weekNumber])
   @@index([quarterId])
 }
 
@@ -157,6 +163,9 @@ model ExecutionWeek {
   objective   String
   deliverable String
   done        Boolean @default(false)
+  /// Monday of this week, derived from the sprint start (Aug 10, 2026), so the
+  /// app can say which week it is now rather than making James count.
+  startsOn    DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

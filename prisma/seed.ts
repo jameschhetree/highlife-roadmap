@@ -461,8 +461,14 @@ async function main() {
     console.log(`  ${q.name}: ${q.objectives.length} objectives, ${q.objectives.reduce((n, o) => n + o.krs.length, 0)} KRs`);
   }
 
+  // Week 1 begins on the sprint start, Monday Aug 10 2026, and each week runs
+  // Monday to Sunday from there.
+  const SPRINT_START = Date.parse("2026-08-10T00:00:00-04:00");
   await prisma.executionWeek.createMany({
-    data: WEEKS.map((w) => ({ week: w.week, objective: w.objective, deliverable: w.deliverable })),
+    data: WEEKS.map((w) => ({
+      week: w.week, objective: w.objective, deliverable: w.deliverable,
+      startsOn: new Date(SPRINT_START + (w.week - 1) * 7 * 86400000),
+    })),
   });
   console.log(`  ${WEEKS.length} execution weeks`);
 
@@ -534,7 +540,7 @@ async function main() {
       title: t.title, owner: t.owner, view: "ThisWeek" as const,
       pillar: t.pillar as never, quarterId: sprint, objectiveId: REVENUE,
       priority: (t.priority ?? "Standard") as never,
-      kpi: t.kpi, dueDate: new Date(t.due), sortOrder: i,
+      kpi: t.kpi, dueDate: new Date(t.due), sortOrder: i, weekNumber: 1,
       notes: "Week 1 of the 90-day execution plan: install the scoreboard.",
     })),
   });

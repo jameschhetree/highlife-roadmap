@@ -24,7 +24,7 @@ type Item = {
   id: string; title: string; owner: string; pillar: string; view: string;
   quarterId: string | null; priority: "Critical" | "Standard" | "Backlog";
   status: "NotStarted" | "InProgress" | "Blocked" | "Done";
-  dueDate: string | null; kpi: string; notes: string; dependency: string;
+  dueDate: string | null; kpi: string; notes: string; dependency: string; weekNumber: number | null;
 };
 type KeyResult = { id: string; label: string; text: string; score: number | null };
 type Objective = { id: string; kind: string; title: string; keyResults: KeyResult[] };
@@ -32,7 +32,7 @@ type Quarter = {
   id: string; name: string; dates: string; revenueTarget: string;
   cumulative: string; focus: string; isCurrent: boolean; objectives: Objective[];
 };
-type Week = { id: string; week: number; objective: string; deliverable: string; done: boolean };
+type Week = { id: string; week: number; objective: string; deliverable: string; done: boolean; startsOn: string | null };
 type Month = { id: string; label: string; target: number; cumulative: number };
 type Threshold = { id: string; metric: string; green: string; yellow: string; red: string };
 type Test = { id: string; text: string; passed: boolean };
@@ -165,6 +165,17 @@ export default function RoadmapPage() {
 
   const current = quarters.find((q) => q.isCurrent) ?? quarters[0];
 
+  // The live week is the last one whose Monday has passed. Before the sprint
+  // starts that is week 1; after week 12 it stays on 12 rather than running off
+  // the end of the plan.
+  const currentWeek = useMemo(() => {
+    const dated = weeks.filter((w) => w.startsOn);
+    if (dated.length === 0) return null;
+    const now = Date.now();
+    const started = dated.filter((w) => Date.parse(w.startsOn!) <= now);
+    return started.length ? started[started.length - 1] : dated[0];
+  }, [weeks]);
+
   const owners = useMemo(
     () => ["Everyone", ...Array.from(new Set(items.map((i) => i.owner))).sort()],
     [items]
@@ -290,6 +301,23 @@ export default function RoadmapPage() {
         {view === "Meetings" && <MeetingsView meetings={meetings} months={months} thresholds={thresholds} call={call} />}
         {view === "Systems" && <Systems data={systems} call={call} />}
 
+        {view === "ThisWeek" && currentWeek && (
+          <Panel className="mb-8 px-5 py-5">
+            <p className="text-[11px] tracking-[0.18em] uppercase text-[#666] mb-2">
+              Week {currentWeek.week} of 12
+            </p>
+            <p className="text-[19px] leading-snug mb-2">{currentWeek.objective}</p>
+            <p className="text-[15px] leading-relaxed text-[#888]">{currentWeek.deliverable}</p>
+            {!items.some((i) => i.weekNumber === currentWeek.week) && (
+              <div className="mt-5">
+                <Button kind="solid" arrow onClick={() => call(`/api/weeks/${currentWeek.id}/load`, "POST")}>
+                  Pull this week in
+                </Button>
+              </div>
+            )}
+          </Panel>
+        )}
+
         {!["QuarterlyOKR", "Money", "Meetings", "Systems"].includes(view) && (
           <>
             <Items items={visible} call={call} />
@@ -306,24 +334,41 @@ export default function RoadmapPage() {
           <Reveal className="mt-20 block">
             <Eyebrow>The first 12 weeks</Eyebrow>
             <p className="text-[16px] leading-relaxed text-[#888] mb-6">
-              One objective per week. Week 1 is already loaded into This week above.
+              One objective per week, straight from the plan. Pull a week in and it becomes editable
+              commitments above — assign the owners, change the wording, add what the plan did not think of.
             </p>
             <div className="divide-y divide-white/10 border-t border-white/10">
-              {weeks.map((w) => (
-                <div key={w.id} className="py-5 flex gap-4">
-                  <Tick
-                    done={w.done} label={`Week ${w.week}`}
-                    onClick={() => call(`/api/weeks/${w.id}`, "PATCH", { done: !w.done })}
-                  />
-                  <div className="min-w-0">
-                    <p className={`text-[17px] leading-snug ${w.done ? "text-[#666] line-through" : ""}`}>
-                      <span className="text-[#666] tabular-nums mr-2">{w.week}</span>
-                      {w.objective}
-                    </p>
-                    <p className="mt-1.5 text-[15px] leading-relaxed text-[#888]">{w.deliverable}</p>
+              {weeks.map((w) => {
+                const loaded = items.some((i) => i.weekNumber === w.week);
+                const isNow = currentWeek?.week === w.week;
+                return (
+                  <div key={w.id} className="py-5 flex gap-4">
+                    <Tick
+                      done={w.done} label={`Week ${w.week}`}
+                      onClick={() => call(`/api/weeks/${w.id}`, "PATCH", { done: !w.done })}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className={`text-[17px] leading-snug ${w.done ? "text-[#666] line-through" : ""}`}>
+                        <span className="text-[#666] tabular-nums mr-2">{w.week}</span>
+                        {w.objective}
+                        {isNow && (
+                          <span className="ml-3 text-[12px] tracking-[0.14em] uppercase text-white">This week</span>
+                        )}
+                      </p>
+                      <p className="mt-1.5 text-[15px] leading-relaxed text-[#888]">{w.deliverable}</p>
+                      <div className="mt-3">
+                        {loaded ? (
+                          <span className="text-[14px] text-[#666]">Already pulled into This week</span>
+                        ) : (
+                          <Button onClick={() => call(`/api/weeks/${w.id}/load`, "POST")}>
+                            Pull week {w.week} in
+                          </Button>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </Reveal>
         )}
