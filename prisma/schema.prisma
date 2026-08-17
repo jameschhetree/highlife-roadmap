@@ -147,6 +147,8 @@ model Item {
 
   sortOrder Int @default(0)
 
+  sop SopDoc?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -357,6 +359,37 @@ model WeeklyFocus {
   basis     String
   body      String   // JSON array of { text, why, owner, section }
   createdAt DateTime @default(now())
+}
+
+/// A written SOP, in the format section 18 specifies.
+///
+/// The SOP list held titles and owners only, which is a list of intentions.
+/// This is the document itself, and the fields are the plan's own nine: purpose,
+/// trigger, owner, inputs, steps, quality check, SLA, escalation, version.
+///
+/// One per Item, so an SOP row in the roadmap and its written procedure stay the
+/// same thing rather than drifting apart in two places.
+model SopDoc {
+  id     String @id @default(cuid())
+  itemId String @unique
+  item   Item   @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  purpose      String @default("")
+  trigger      String @default("")
+  inputs       String @default("")
+  /// One step per line. Section 18 asks for 5-12.
+  steps        String @default("")
+  qualityCheck String @default("")
+  sla          String @default("")
+  escalation   String @default("")
+  version      String @default("v1")
+
+  /// Drafted and in use are different things, and the plan's key result is about
+  /// published SOPs.
+  published Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model ChatLog {

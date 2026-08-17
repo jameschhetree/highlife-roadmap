@@ -31,6 +31,12 @@ type Item = {
   quarterId: string | null; priority: "Critical" | "Standard" | "Backlog";
   status: "NotStarted" | "InProgress" | "Blocked" | "Done";
   dueDate: string | null; kpi: string; notes: string; dependency: string; weekNumber: number | null;
+  sop?: Sop | null;
+};
+type Sop = {
+  purpose: string; trigger: string; inputs: string; steps: string;
+  qualityCheck: string; sla: string; escalation: string; version: string;
+  published: boolean;
 };
 type KeyResult = { id: string; label: string; text: string; score: number | null };
 type Objective = { id: string; kind: string; title: string; keyResults: KeyResult[] };
@@ -687,6 +693,7 @@ function Items({
               <Field label="Dependency" value={it.dependency} onSave={(v) => call(`/api/items/${it.id}`, "PATCH", { dependency: v })} className="sm:col-span-2" />
               <Field label="Notes / evidence" multiline value={it.notes} onSave={(v) => call(`/api/items/${it.id}`, "PATCH", { notes: v })} className="sm:col-span-2" />
               </div>
+              {it.view === "SOP" && <SopEditor item={it} call={call} />}
               <button
                 onClick={() => call(`/api/items/${it.id}`, "DELETE")}
                 className="mt-6 ml-5 min-h-[44px] text-[15px] text-[var(--muted)]"
@@ -1320,5 +1327,142 @@ function MonthlyRollup({
         </div>
       </SaveGroup>
     </>
+  );
+}
+
+
+const SOP_FIELDS: [keyof Sop, string, string][] = [
+  ["purpose", "Purpose", "Why this process exists."],
+  ["trigger", "Trigger", "What starts it."],
+  ["inputs", "Inputs", "The information or files needed before you begin."],
+  ["steps", "Steps", "One per line. Five to twelve."],
+  ["qualityCheck", "Quality check", "What must be true before it counts as done."],
+  ["sla", "SLA", "How long it should take."],
+  ["escalation", "Escalation", "What happens when something goes wrong."],
+  ["version", "Version", "v1, and the date you last changed it."],
+];
+
+/**
+ * The SOP itself, in section 18's format.
+ *
+ * The list held titles and owners, which is a list of intentions. Written out,
+ * an SOP reads like the plan document does — which is what Jaco asked for, and
+ * also what makes it usable by someone who was not in the room.
+ */
+function SopEditor({
+  item, call,
+}: { item: Item; call: (u: string, m: string, b?: unknown) => Promise<boolean> }) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState<Sop>(
+    item.sop ?? {
+      purpose: "", trigger: "", inputs: "", steps: "",
+      qualityCheck: "", sla: "", escalation: "", version: "v1", published: false,
+    }
+  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const written = item.sop && (item.sop.purpose || item.sop.steps);
+
+  const save = async (published?: boolean) => {
+    setSaving(true); setError("");
+    const r = await fetch(`/api/sops/${item.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...draft, ...(published === undefined ? {} : { published }) }),
+    });
+    setSaving(false);
+    if (!r.ok) { setError((await r.json().catch(() => ({}))).error ?? "Could not save."); return; }
+    setOpen(false);
+    await call("/api/roadmap", "GET");
+  };
+
+  if (!open) {
+    return (
+      <div className="mt-7 pt-6 border-t border-white/10">
+        {written ? (
+          <>
+            <div className="flex items-baseline justify-between gap-3 mb-4">
+              <Eyebrow>The procedure</Eyebrow>
+              <span className="text-[13px] text-[var(--muted-3)]">
+                {item.sop!.version}
+                {item.sop!.published ? " · published" : " · draft"}
+              </span>
+            </div>
+            {SOP_FIELDS.filter(([k]) => (item.sop![k] as string)?.trim()).map(([k, label]) => (
+              <div key={k} className="mb-5">
+                <p className="text-[11px] tracking-[0.14em] uppercase text-[var(--muted-3)] mb-1.5">{label}</p>
+                {k === "steps" ? (
+                  <ol className="space-y-1.5">
+                    {(item.sop![k] as string).split("\n").filter((l) => l.trim()).map((l, i) => (
+                      <li key={i} className="flex gap-3 text-[16px] leading-relaxed">
+                        <span className="shrink-0 tabular-nums text-[var(--muted-3)]">{i + 1}</span>
+                        <span>{l.replace(/^\d+[.)]\s*/, "")}</span>
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <p className="text-[16px] leading-relaxed whitespace-pre-wrap">{item.sop![k] as string}</p>
+                )}
+              </div>
+            ))}
+            <div className="flex flex-wrap gap-3">
+              <Button onClick={() => setOpen(true)}>Edit the procedure</Button>
+              {!item.sop!.published && (
+                <Button kind="solid" onClick={() => save(true)}>Publish</Button>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            <Eyebrow>The procedure</Eyebrow>
+            <p className="text-[15px] leading-relaxed text-[var(--muted)] mb-4">
+              Not written yet. The plan asks for purpose, trigger, owner, inputs, five to twelve steps,
+              a quality check, an SLA, escalation and a version — and says to build it while doing the
+              task rather than spending a week on a perfect manual.
+            </p>
+            <Button onClick={() => setOpen(true)}>Write it</Button>
+          </>
+        )}
+        {error && <p className="mt-3 text-[15px] text-[var(--alert)]">{error}</p>}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-7 pt-6 border-t border-white/10">
+      <Eyebrow>Writing the procedure</Eyebrow>
+      <div className="grid gap-5">
+        {SOP_FIELDS.map(([k, label, hint]) => (
+          <label key={k} className="block">
+            <span className="block text-[11px] tracking-[0.14em] uppercase text-[var(--muted-3)] mb-1">
+              {label}
+            </span>
+            <span className="block text-[13px] text-[var(--muted-3)] mb-2">{hint}</span>
+            {k === "steps" ? (
+              <textarea
+                rows={8}
+                value={draft[k] as string}
+                onChange={(e) => setDraft({ ...draft, [k]: e.target.value })}
+                className="w-full px-3.5 py-3 text-[16px] leading-relaxed rounded-[10px] bg-white/[0.04] border border-white/10 text-[var(--text)]"
+              />
+            ) : (
+              <input
+                value={draft[k] as string}
+                onChange={(e) => setDraft({ ...draft, [k]: e.target.value })}
+                className="w-full min-h-[48px] px-3.5 py-3 text-[16px] rounded-[10px] bg-white/[0.04] border border-white/10 text-[var(--text)]"
+              />
+            )}
+          </label>
+        ))}
+      </div>
+      {error && <p className="mt-3 text-[15px] text-[var(--alert)]">{error}</p>}
+      <div className="mt-6 flex flex-wrap gap-3">
+        <Button kind="solid" onClick={() => save()} disabled={saving}>
+          {saving ? "Saving" : "Save the procedure"}
+        </Button>
+        <Button onClick={() => setOpen(false)}>Cancel</Button>
+      </div>
+    </div>
   );
 }

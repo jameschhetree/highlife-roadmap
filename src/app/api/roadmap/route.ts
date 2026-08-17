@@ -13,7 +13,10 @@ export async function GET() {
         },
       },
     }),
-    prisma.item.findMany({ orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] }),
+    prisma.item.findMany({
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      include: { sop: true },
+    }),
     prisma.executionWeek.findMany({ orderBy: { week: "asc" } }),
     prisma.monthTarget.findMany({ orderBy: { sortOrder: "asc" } }),
     prisma.threshold.findMany({ orderBy: { sortOrder: "asc" } }),
