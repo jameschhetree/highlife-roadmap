@@ -108,7 +108,23 @@ export function Field({
   const group = useContext(SaveGroupContext);
   const key = useRef(`f${++fieldSeq}`).current;
   const [v, setV] = useState(value);
-  useEffect(() => setV(value), [value]);
+  const dirty = v !== value;
+
+  // Only take the server's value when there is nothing unsaved here.
+  //
+  // Without this guard, any background refresh — and one runs after every save
+  // anywhere on the page — overwrote whatever was being typed. Jaco lost a set
+  // of meeting notes to exactly that: he typed them, something else refreshed,
+  // and the box reset to empty.
+  const dirtyRef = useRef(false);
+  dirtyRef.current = dirty;
+  useEffect(() => {
+    if (!dirtyRef.current) setV(value);
+  }, [value]);
+
+  const commit = () => {
+    if (v !== value) onSave(v);
+  };
 
   const change = (next: string) => {
     setV(next);
@@ -129,15 +145,17 @@ export function Field({
         <textarea
           value={v} placeholder={placeholder} rows={4}
           onChange={(e) => change(e.target.value)}
-          // On its own, with no group to press, blur still saves.
-          onBlur={group ? undefined : () => v !== value && onSave(v)}
+          // Blur saves even inside a group. The button is a confirmation, not
+          // the only way in — losing text because it was never pressed is worse
+          // than saving something twice.
+          onBlur={commit}
           className={`${shared} min-h-[120px] resize-y`}
         />
       ) : (
         <input
           type={type} value={v} placeholder={placeholder}
           onChange={(e) => change(e.target.value)}
-          onBlur={group ? undefined : () => v !== value && onSave(v)}
+          onBlur={commit}
           className={`${shared} min-h-[48px]`}
         />
       )}
