@@ -27,6 +27,8 @@ import { rollUp, collectedByMonth, monthUnderReview } from "@/lib/rollup";
 import { occurrenceToLog, nextOccurrence, pretty } from "@/lib/meetingDates";
 import { measureKr } from "@/lib/measure";
 import { group } from "@/lib/group";
+import { pace, monthKeyOf, funnel } from "@/lib/pace";
+import { Curve, PaceBar, Funnel, type Point } from "@/components/chart";
 
 type View =
   | "ThisWeek" | "Meetings" | "QuarterlyOKR" | "Money" | "RevenueProject"
@@ -177,6 +179,15 @@ const PRIORITIES = ["Critical", "Standard", "Backlog"];
 const STATUSES = ["NotStarted", "InProgress", "Blocked", "Done"];
 
 const money = (n: number) => `$${Math.round(n / 1000)}K`;
+/**
+ * Exact dollars, with commas.
+ *
+ * `money` rounds to thousands, which is right for a $250K goal and useless for
+ * a scoreboard: $1,275 collected and $907 behind both render as "$1K", so the
+ * headline read "Behind by $1K" against "$1K in". At this stage of the plan the
+ * months are $6,000 and the difference between $900 and $1,400 is the week.
+ */
+const dollars = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
 const fmtDate = (d: string | null) =>
   d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "";
 const today = () => new Date().toISOString().slice(0, 10);
@@ -449,13 +460,17 @@ export default function RoadmapPage() {
 
         {view === "QuarterlyOKR" && <Okrs quarters={quarters} call={call} meetings={meetings} items={items} />}
         {view === "Money" && <Money months={months} thresholds={thresholds} tests={tests} meetings={meetings} call={call} />}
-        {view === "Meetings" && <MeetingsView meetings={meetings} months={months} thresholds={thresholds} call={call} />}
+        {view === "Meetings" && <MeetingsView meetings={meetings} months={months} thresholds={thresholds} weeks={weeks} call={call} />}
         {view === "Systems" && <Systems data={systems} call={call} />}
         {view === "Team" && <Team people={people} items={items} call={call} onDone={load} />}
 
         {/* This week is the dashboard. Two columns on a wide screen so it reads
             at a glance instead of scrolling for a minute: what to do on the
             left, where you stand on the right. */}
+        {view === "ThisWeek" && (
+          <Scoreboard months={months} meetings={meetings} weeks={weeks} onOpen={setView} />
+        )}
+
         {view === "ThisWeek" && (
           <div className="grid gap-5 lg:grid-cols-[1.3fr_1fr] items-start mb-10">
             <div className="space-y-5">
@@ -542,7 +557,7 @@ export default function RoadmapPage() {
 
             <div className="space-y-5">
               <div className="grid grid-cols-2 gap-3">
-                <Tile label="Collected" value={collectedTotal == null ? "—" : money(collectedTotal)}
+                <Tile label="Collected" value={collectedTotal == null ? "—" : dollars(collectedTotal)}
                   sub={current ? `of ${current.cumulative} by Sep 30` : ""} onClick={() => setView("Money")} />
                 <Tile label="Open" value={String(openThisWeek)}
                   sub={overdue > 0 ? `${overdue} past due` : "on time"} warn={overdue > 0}
@@ -716,6 +731,191 @@ function Tile({
         {sub && <p className="mt-2 text-[13px] leading-snug text-[var(--muted)]">{sub}</p>}
       </Panel>
     </button>
+  );
+}
+
+/** The day the plan starts, which is the day its first, short month starts. */
+function planStartOf(weeks: Week[]): string | null {
+  return weeks.reduce<string | null>(
+    (a, w) => (w.startsOn && (!a || w.startsOn < a) ? w.startsOn : a),
+    null
+  );
+}
+
+/**
+ * Revenue pace as at a given Monday, as a percentage of what was due by then.
+ *
+ * Only cards up to that Monday count. A card graded with money collected after
+ * it would show a week as having hit a number it had not hit yet, and the whole
+ * point of the card is what was true in the room that morning.
+ */
+function pacePctAt(
+  date: string, months: Month[], meetings: Meeting[], weeks: Week[]
+): number | null {
+  const key = monthKeyOf(new Date(date));
+  const month = months.find((m) => m.key === key);
+  if (!month) return null;
+
+  const upTo = meetings.filter(
+    (m) => (m.kind === "MondayBusiness" || m.kind === "MondayMonthly") && Date.parse(m.date) <= Date.parse(date)
+  );
+  const collected = collectedByMonth(upTo as never)[key] ?? null;
+
+  return pace({
+    key, target: month.target, collected,
+    planStart: planStartOf(weeks), now: new Date(date),
+  })?.pct ?? null;
+}
+
+/**
+ * Where the money stands, at the top of the board.
+ *
+ * The four tiles under this said "$1,275 collected of $16,000" and left the
+ * reader to work out whether that was good — which depends entirely on what day
+ * it is. Two of the other three were progress counters. Nothing on the page had
+ * a time axis, so nothing on the page could say "behind".
+ *
+ * This says it in three ways at once: the sentence, the bar with today marked
+ * on it, and the plan's whole revenue curve with actual drawn on top.
+ */
+function Scoreboard({
+  months, meetings, weeks, onOpen,
+}: {
+  months: Month[]; meetings: Meeting[]; weeks: Week[]; onOpen: (v: View) => void;
+}) {
+  const weekly = meetings.filter((m) => m.kind === "MondayBusiness" || m.kind === "MondayMonthly");
+  const actual = collectedByMonth(weekly as never);
+  const planStart = planStartOf(weeks);
+
+  const key = monthKeyOf(new Date());
+  const month = months.find((m) => m.key === key) ?? null;
+  const p = month
+    ? pace({ key, target: month.target, collected: actual[key] ?? null, planStart })
+    : null;
+
+  // Cumulative, both lines. The actual stops at the last month anyone reported:
+  // continuing it through unreported months would draw them as months of no
+  // revenue, which is a different claim from "not filled in".
+  const lastKnown = months.reduce((last, m, i) => (actual[m.key] != null ? i : last), -1);
+  const monthIndex = months.findIndex((m) => m.key === key);
+  let cumT = 0;
+  let cumA = 0;
+  let bankedByNow: number | null = null;
+  const points: Point[] = months.map((m, i) => {
+    // What the plan says is due by today: every earlier month in full, plus the
+    // part of this one the calendar has used up.
+    if (i === monthIndex && p) bankedByNow = cumT + p.expected;
+    cumT += m.target;
+    cumA += actual[m.key] ?? 0;
+    return {
+      label: m.label.replace(/[\s-]*\d+.*?,/, "").trim().split(" ")[0],
+      target: cumT,
+      actual: i <= lastKnown ? cumA : null,
+    };
+  });
+
+  // Between this month's tick and the next, in proportion to how far through it is.
+  const nowMark =
+    monthIndex >= 0 && p && bankedByNow != null
+      ? { at: monthIndex + p.through - 1 + (monthIndex === 0 ? 1 : 0), expected: bankedByNow }
+      : null;
+
+  // The most recent Monday card that has any tour numbers on it.
+  const card = [...weekly]
+    .sort((a, b) => Date.parse(b.date) - Date.parse(a.date))
+    .find((m) => m.toursBooked != null || m.leads != null) ?? null;
+
+  const stages = card ? funnel(card) : null;
+  const hasFunnel = stages?.some((s) => s.value != null);
+
+  return (
+    <section className="mb-5 grid gap-5 lg:grid-cols-[1.3fr_1fr] items-start">
+      <Panel className="px-5 py-5">
+        {p && month ? (
+          <>
+            <div className="flex items-baseline justify-between gap-4 flex-wrap mb-3">
+              <p className="text-[11px] tracking-[0.18em] uppercase text-[var(--muted-3)]">
+                {month.label}
+              </p>
+              <p className="text-[13px] tabular-nums text-[var(--muted-3)]">
+                day {p.daysGone} of {p.daysTotal}
+              </p>
+            </div>
+
+            <p className="text-[26px] md:text-[30px] leading-[1.15] tracking-[-0.02em] mb-1">
+              {Math.abs(p.delta) < 1 ? (
+                <>Exactly on pace.</>
+              ) : p.delta > 0 ? (
+                <>Ahead by <span className="text-[var(--ok)] tabular-nums">{dollars(p.delta)}</span>.</>
+              ) : (
+                <>Behind by <span className="text-[var(--alert)] tabular-nums">{dollars(-p.delta)}</span>.</>
+              )}
+            </p>
+            <p className="text-[15px] leading-relaxed text-[var(--muted)] mb-4 tabular-nums">
+              {dollars(p.collected)} in, {dollars(p.expected)} due by tonight, {dollars(month.target)} for the month.
+            </p>
+
+            <PaceBar pct={p.pct} through={p.through} />
+            <p className="mt-2 text-[13px] text-[var(--muted-3)]">
+              The mark is today. The bar is the month.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="text-[19px] leading-snug mb-2">No target for this month yet.</p>
+            <p className="text-[15px] leading-relaxed text-[var(--muted)]">
+              Pace needs a monthly target to measure against. They live on Money.
+            </p>
+          </>
+        )}
+
+        <div className="mt-6 -mx-1 text-[var(--text)]">
+          <Curve points={points} now={nowMark} />
+        </div>
+        <div className="mt-3 flex items-center gap-5 text-[13px] text-[var(--muted-3)]">
+          <span className="flex items-center gap-2">
+            <span className="w-4 h-px bg-current opacity-60" style={{ borderTop: "1px dashed currentColor" }} />
+            plan
+          </span>
+          <span className="flex items-center gap-2">
+            <span className="w-4 h-[2px] rounded bg-[var(--text)]" />
+            collected
+          </span>
+          <button onClick={() => onOpen("Money")} className="ml-auto text-[var(--muted)] hover:text-[var(--text)]">
+            Money →
+          </button>
+        </div>
+      </Panel>
+
+      {hasFunnel ? (
+        <Panel className="px-5 py-5">
+          <p className="text-[11px] tracking-[0.18em] uppercase text-[var(--muted-3)] mb-4">
+            Tours, last card
+          </p>
+          <Funnel stages={stages!} />
+          <p className="mt-4 text-[13px] leading-relaxed text-[var(--muted-3)]">
+            {(() => {
+              const b = card?.toursBooked ?? null;
+              const s = card?.toursShowed ?? null;
+              if (b == null || s == null || b === 0) return "Fill in leads and tours on Monday and the drop shows up here.";
+              const rate = (s / b) * 100;
+              const missed = b - s;
+              return rate >= 70
+                ? `${Math.round(rate)}% showed. Green on your threshold.`
+                : `${missed} booked tour${missed === 1 ? "" : "s"} did not turn up. Green is 70% showing.`;
+            })()}
+          </p>
+        </Panel>
+      ) : (
+        <Panel className="px-5 py-5">
+          <p className="text-[11px] tracking-[0.18em] uppercase text-[var(--muted-3)] mb-3">Tours</p>
+          <p className="text-[15px] leading-relaxed text-[var(--muted)]">
+            Nothing to draw yet. Leads and tours go on the Monday card, and the funnel
+            appears here the moment there are numbers on one.
+          </p>
+        </Panel>
+      )}
+    </section>
   );
 }
 
@@ -1210,9 +1410,9 @@ const CARD_STYLE: Record<Exclude<Card, null>, string> = {
 };
 
 function Cards({
-  meeting, monthTarget, thresholds,
-}: { meeting: Meeting; monthTarget: number | null; thresholds: Threshold[] }) {
-  const graded = gradeAll(meeting, monthTarget);
+  meeting, pacePct, thresholds,
+}: { meeting: Meeting; pacePct: number | null; thresholds: Threshold[] }) {
+  const graded = gradeAll(meeting, pacePct);
   const known = Object.values(graded).filter((g) => g.card !== null).length;
 
   return (
@@ -1252,9 +1452,9 @@ function Cards({
 }
 
 function MeetingsView({
-  meetings, months, thresholds, call,
+  meetings, months, thresholds, weeks, call,
 }: {
-  meetings: Meeting[]; months: Month[]; thresholds: Threshold[];
+  meetings: Meeting[]; months: Month[]; thresholds: Threshold[]; weeks: Week[];
   call: (u: string, m: string, b?: unknown) => Promise<boolean>;
 }) {
   const [openKind, setOpenKind] = useState<string | null>("MondayBusiness");
@@ -1342,11 +1542,7 @@ function MeetingsView({
                           <Cards
                             meeting={m}
                             thresholds={thresholds}
-                            monthTarget={
-                              months.find((mo) => mo.label.includes(
-                                new Date(m.date).toLocaleDateString("en-US", { month: "short" })
-                              ) && mo.label.includes(String(new Date(m.date).getFullYear())))?.target ?? null
-                            }
+                            pacePct={pacePctAt(m.date, months, meetings, weeks)}
                           />
                           <Eyebrow>Scorecard</Eyebrow>
                           <SaveGroup>

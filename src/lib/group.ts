@@ -17,22 +17,7 @@ export type Groupable = {
 
 export type Group<T> = { key: string; label: string; items: T[]; urgent?: boolean };
 
-const TZ = "America/New_York";
-
-/**
- * The calendar day a moment falls on, in James's timezone.
- *
- * setHours(0,0,0,0) uses whatever zone the machine is in, and Vercel runs in
- * UTC — so a task due at 11pm Eastern was already counted as tomorrow, and
- * anything due "today" would have shown as due tomorrow every evening. Same
- * class of bug as the weekday one on the daily guidance.
- */
-const dayKey = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(d);
-
-const dayNumber = (d: Date) => {
-  const [y, m, day] = dayKey(d).split("-").map(Number);
-  return Date.UTC(y, m - 1, day) / 86400000;
-};
+import { dayNumber } from "./days";
 
 /** Whole days from today, counted in Eastern. Negative is in the past. */
 export function daysAway(due: string, now = new Date()): number {

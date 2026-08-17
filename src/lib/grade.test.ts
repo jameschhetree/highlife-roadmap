@@ -46,13 +46,19 @@ test("show rate is computed from tours, not typed", () => {
   expect(g["Tour show rate"].display).toBe("70%");
 });
 
-test("revenue pace is computed against the month target", () => {
-  const g = gradeAll({ ...blank, cashCollected: 9000 }, 10000);
-  expect(g["Revenue vs monthly pace"].card).toBe("yellow"); // 90%
-  const h = gradeAll({ ...blank, cashCollected: 10000 }, 10000);
-  expect(h["Revenue vs monthly pace"].card).toBe("green");
-  const i = gradeAll({ ...blank, cashCollected: 8000 }, 10000);
-  expect(i["Revenue vs monthly pace"].card).toBe("red");
+test("revenue pace is graded on the pace percentage it is handed", () => {
+  expect(gradeAll(blank, 90)["Revenue vs monthly pace"].card).toBe("yellow");
+  expect(gradeAll(blank, 100)["Revenue vs monthly pace"].card).toBe("green");
+  expect(gradeAll(blank, 80)["Revenue vs monthly pace"].card).toBe("red");
+});
+
+test("pace is not this week's cash over the month's target", () => {
+  // The old behaviour: $1,275 in week one of a $6,000 month graded red, and
+  // would have graded red at any point in any month a single week did not
+  // cover. Cash alone can no longer produce a card.
+  const g = gradeAll({ ...blank, cashCollected: 1275 }, null);
+  expect(g["Revenue vs monthly pace"].card).toBeNull();
+  expect(g["Revenue vs monthly pace"].display).toBe("—");
 });
 
 test("a missing number is unknown, never a card", () => {

@@ -49,14 +49,18 @@ export const RULES: Record<string, (v: number) => Card> = {
  */
 export function gradeAll(
   v: ScorecardValues,
-  monthTarget: number | null
+  pacePct: number | null
 ): Record<string, { card: Card; value: number | null; display: string }> {
   const out: Record<string, { card: Card; value: number | null; display: string }> = {};
 
-  const pace =
-    v.cashCollected != null && monthTarget && monthTarget > 0
-      ? (v.cashCollected / monthTarget) * 100
-      : null;
+  // Pace arrives already worked out, from lib/pace.
+  //
+  // It used to be computed here as this week's cash over the whole month's
+  // target, which graded red unless one week paid for the month — a red that
+  // could not have been anything else, on the card Jaco reads every Monday. The
+  // comparison the plan means is month to date against what the calendar says
+  // should be in by now, and that needs a date, which a scorecard does not have.
+  const pace = pacePct;
 
   const showRate =
     v.toursBooked != null && v.toursShowed != null && v.toursBooked > 0
@@ -64,7 +68,7 @@ export function gradeAll(
       : null;
 
   const pairs: [string, number | null, string][] = [
-    ["Revenue vs monthly pace", pace, pace == null ? "—" : `${Math.round(pace)}% of target`],
+    ["Revenue vs monthly pace", pace, pace == null ? "—" : `${Math.round(pace)}% of pace`],
     ["Tour show rate", showRate, showRate == null ? "—" : `${Math.round(showRate)}%`],
     ["Tour close rate", v.tourCloseRate, v.tourCloseRate == null ? "—" : `${v.tourCloseRate}%`],
     ["Recurring conversion", v.recurringConversion, v.recurringConversion == null ? "—" : `${v.recurringConversion}%`],
