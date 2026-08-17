@@ -554,7 +554,11 @@ export default function RoadmapPage() {
               </div>
             )}
 
-            {visible.length === 0 && view === "Blocked" ? (
+            {view === "SOP" && <SopImport onDone={load} />}
+
+            {view === "SOP" ? (
+              <SopSplit items={visible} call={call} />
+            ) : visible.length === 0 && view === "Blocked" ? (
               <Empty>
                 Nothing is blocked, which is what you want. This tab fills itself: open any item
                 anywhere in the app, set its status to Blocked, and it shows up here too. Monday is for
@@ -1464,5 +1468,128 @@ function SopEditor({
         <Button onClick={() => setOpen(false)}>Cancel</Button>
       </div>
     </div>
+  );
+}
+
+
+/**
+ * The SOP tab, split into what exists and what is still owed.
+ *
+ * A single list of twelve titles does not tell you where you stand. Launch
+ * Sprint O2 KR3 is about published SOPs, so the split is published, drafted and
+ * not written — and the seven the sprint actually names are marked, because
+ * those are the ones with a deadline.
+ */
+function SopSplit({
+  items, call,
+}: { items: Item[]; call: (u: string, m: string, b?: unknown) => Promise<boolean> }) {
+  const published = items.filter((i) => i.sop?.published);
+  const drafted = items.filter((i) => i.sop && !i.sop.published);
+  const unwritten = items.filter((i) => !i.sop);
+  const critical = unwritten.filter((i) => i.priority === "Critical");
+
+  return (
+    <>
+      <Panel className="mb-8 px-5 py-5">
+        <p className="text-[11px] tracking-[0.18em] uppercase text-[var(--muted-3)] mb-3">Where you stand</p>
+        <dl className="divide-y divide-white/[0.08]">
+          <Row k="Published" v={String(published.length)} big />
+          <Row k="Drafted, not published" v={String(drafted.length)} big />
+          <Row k="Not written" v={String(unwritten.length)} big warn={unwritten.length > 0} />
+        </dl>
+        {critical.length > 0 && (
+          <p className="mt-4 text-[15px] leading-relaxed text-[var(--muted)]">
+            {critical.length} of the unwritten {critical.length === 1 ? "is" : "are"} in the seven the
+            Launch Sprint requires before Q4.
+          </p>
+        )}
+      </Panel>
+
+      {published.length > 0 && (
+        <section className="mb-10">
+          <Eyebrow>Published</Eyebrow>
+          <Items items={published} call={call} />
+        </section>
+      )}
+      {drafted.length > 0 && (
+        <section className="mb-10">
+          <Eyebrow>Drafted — read it, then publish</Eyebrow>
+          <Items items={drafted} call={call} />
+        </section>
+      )}
+      {unwritten.length > 0 && (
+        <section className="mb-10">
+          <Eyebrow>Still to write</Eyebrow>
+          <Items items={unwritten} call={call} />
+        </section>
+      )}
+    </>
+  );
+}
+
+/** Paste an SOP written elsewhere and have it mapped onto the plan's format. */
+function SopImport({ onDone }: { onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ title: string; missing: string[] } | null>(null);
+  const [error, setError] = useState("");
+
+  const run = async () => {
+    setBusy(true); setError(""); setResult(null);
+    const r = await fetch("/api/sops/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    setBusy(false);
+    if (!r.ok) { setError((await r.json().catch(() => ({}))).error ?? "Could not import that."); return; }
+    const d = await r.json();
+    setResult({ title: d.item.title, missing: d.missing ?? [] });
+    setText("");
+    onDone();
+  };
+
+  if (!open) {
+    return (
+      <div className="mb-8">
+        <Button onClick={() => setOpen(true)}>Import an SOP you already have</Button>
+      </div>
+    );
+  }
+
+  return (
+    <Panel className="mb-8 px-5 py-5">
+      <p className="text-[11px] tracking-[0.18em] uppercase text-[var(--muted-3)] mb-2">Import</p>
+      <p className="text-[15px] leading-relaxed text-[var(--muted)] mb-4">
+        Paste an SOP written anywhere else and it gets mapped onto the nine fields. It uses only what
+        your text says — anything the document does not cover comes back empty and gets listed, rather
+        than being filled in with something plausible. It arrives as a draft for you to read.
+      </p>
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        rows={10}
+        placeholder="Paste the whole thing, however it is written."
+        className="w-full px-3.5 py-3 text-[16px] leading-relaxed rounded-[10px] bg-white/[0.04] border border-white/10 text-[var(--text)]"
+      />
+      {error && <p className="mt-3 text-[15px] text-[var(--alert)]">{error}</p>}
+      {result && (
+        <div className="mt-4">
+          <p className="text-[16px]">Imported: {result.title}</p>
+          {result.missing.length > 0 && (
+            <p className="mt-1.5 text-[15px] leading-relaxed text-[var(--warn)]">
+              Your document did not cover: {result.missing.join(", ")}. Fill those in before publishing.
+            </p>
+          )}
+        </div>
+      )}
+      <div className="mt-5 flex flex-wrap gap-3">
+        <Button kind="solid" onClick={run} disabled={busy || text.trim().length < 40}>
+          {busy ? "Reading it…" : "Import"}
+        </Button>
+        <Button onClick={() => { setOpen(false); setError(""); setResult(null); }}>Close</Button>
+      </div>
+    </Panel>
   );
 }
