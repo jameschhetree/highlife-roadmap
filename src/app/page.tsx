@@ -1785,15 +1785,15 @@ function SopImport({ onDone }: { onDone: () => void }) {
     <Panel className="mb-8 px-5 py-5">
       <p className="text-[11px] tracking-[0.18em] uppercase text-[var(--muted-3)] mb-2">Import</p>
       <p className="text-[15px] leading-relaxed text-[var(--muted)] mb-4">
-        Paste an SOP written anywhere else and it gets mapped onto the nine fields. It uses only what
-        your text says — anything the document does not cover comes back empty and gets listed, rather
-        than being filled in with something plausible. It arrives as a draft for you to read.
+        Paste a Google Doc link, or the SOP text itself. A link is fetched and stays attached to the
+        SOP so the doc remains the source. Either way it uses only what the document says — anything
+        it does not cover is listed rather than invented — and arrives as a draft.
       </p>
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
-        rows={10}
-        placeholder="Paste the whole thing, however it is written."
+        rows={4}
+        placeholder="https://docs.google.com/document/d/… or paste the text"
         className="w-full px-3.5 py-3 text-[16px] leading-relaxed rounded-[10px] bg-white/[0.04] border border-white/10 text-[var(--text)]"
       />
       {error && <p className="mt-3 text-[15px] text-[var(--alert)]">{error}</p>}
@@ -1808,7 +1808,7 @@ function SopImport({ onDone }: { onDone: () => void }) {
         </div>
       )}
       <div className="mt-5 flex flex-wrap gap-3">
-        <Button kind="solid" onClick={run} disabled={busy || text.trim().length < 40}>
+        <Button kind="solid" onClick={run} disabled={busy || (text.trim().length < 40 && !/^https:\/\/(docs|drive)\.google\.com\//.test(text.trim()))}>
           {busy ? "Reading it…" : "Import"}
         </Button>
         <Button onClick={() => { setOpen(false); setError(""); setResult(null); }}>Close</Button>

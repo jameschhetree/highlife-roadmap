@@ -19,10 +19,46 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 export async function POST(request: Request) {
   const prisma = requirePrisma();
   const body = (await request.json()) as { text?: string; title?: string; owner?: string };
-  const text = (body.text ?? "").trim();
+  let text = (body.text ?? "").trim();
+  let docUrl = "";
+
+  // A pasted Google Doc link is a link, not an SOP.
+  //
+  // Jaco pasted one in here and the model was handed the URL as if it were the
+  // procedure, so it produced an SOP called <UNKNOWN> with every field missing.
+  // If the box contains only a link, fetch the document behind it and keep the
+  // link attached.
+  const onlyLink = /^https:\/\/(docs|drive)\.google\.com\/\S+$/.test(text);
+  if (onlyLink) {
+    docUrl = text;
+    const id = text.match(/\/document\/d\/([a-zA-Z0-9_-]+)/)?.[1];
+    if (!id) {
+      return Response.json(
+        { error: "That looks like a Drive link rather than a Google Doc. Paste the doc link." },
+        { status: 400 }
+      );
+    }
+    try {
+      const r = await fetch(`https://docs.google.com/document/d/${id}/export?format=txt`);
+      const fetched = (await r.text()).replace(/﻿/g, "").trim();
+      // A restricted doc answers 200 with a sign-in page rather than an error.
+      if (!r.ok || !fetched || /<!DOCTYPE html|Sign in|Request access/i.test(fetched.slice(0, 400))) {
+        return Response.json(
+          { error: "I cannot read that doc. Set it to anyone with the link can view, then try again." },
+          { status: 403 }
+        );
+      }
+      text = fetched;
+    } catch {
+      return Response.json({ error: "Could not fetch that document." }, { status: 502 });
+    }
+  }
 
   if (text.length < 40) {
-    return Response.json({ error: "Paste the SOP text and I will structure it." }, { status: 400 });
+    return Response.json(
+      { error: "Paste the SOP text, or a Google Doc link that anyone with the link can view." },
+      { status: 400 }
+    );
   }
   if (text.length > 40000) {
     return Response.json({ error: "That is too long for one SOP. Split it." }, { status: 413 });
@@ -81,7 +117,8 @@ export async function POST(request: Request) {
 
     const item = await prisma.item.create({
       data: {
-        title: body.title?.trim() || d.title || "Imported SOP",
+        // Never <UNKNOWN>: if the model cannot name it, say where it came from.
+        title: body.title?.trim() || (d.title && !/unknown/i.test(d.title) ? d.title : "Imported SOP"),
         owner: body.owner?.trim() || d.owner || "Unassigned",
         view: "SOP",
         pillar: "Operations",
@@ -91,6 +128,7 @@ export async function POST(request: Request) {
         notes: "Imported from an existing document.",
         sop: {
           create: {
+            docUrl,
             purpose: d.purpose ?? "",
             trigger: d.trigger ?? "",
             inputs: d.inputs ?? "",
