@@ -52,7 +52,12 @@ body {
 }
 
 /* A very slow drift behind the glass. Without something moving underneath it,
-   a blur is just a grey box. */
+   a blur is just a grey box — which is what the cards were: the backdrop-filter
+   was doing its job over a flat black field, so there was nothing to refract
+   and the glass read as a slightly lighter rectangle.
+   Brighter and larger now, and off-centre, so the panels catch a gradient
+   rather than an even wash. Still white on black: the palette is the one thing
+   about this that was already right. */
 body::before {
   content: "";
   position: fixed;
@@ -60,10 +65,26 @@ body::before {
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(circle at 22% 28%, rgba(255, 255, 255, 0.05) 0%, transparent 45%),
-    radial-gradient(circle at 78% 68%, rgba(255, 255, 255, 0.035) 0%, transparent 45%),
-    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.02) 0%, transparent 60%);
+    radial-gradient(circle at 18% 22%, rgba(255, 255, 255, 0.10) 0%, transparent 42%),
+    radial-gradient(circle at 82% 72%, rgba(255, 255, 255, 0.075) 0%, transparent 44%),
+    radial-gradient(circle at 62% 12%, rgba(255, 255, 255, 0.045) 0%, transparent 38%),
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.025) 0%, transparent 62%);
   animation: drift 26s ease-in-out infinite;
+}
+
+/* Grain, at the very edge of visible.
+   Large flat gradients band on an OLED panel, and the banding is what makes a
+   dark gradient look cheap. A little noise over the top breaks the steps up.
+   Inline SVG rather than an image file: one fewer request, and it cannot go
+   missing. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 /* On light, glass has to darken what is behind it rather than lighten it. */
@@ -89,21 +110,54 @@ body::before {
 }
 
 /*
-  These live outside @layer utilities on purpose.
-  Inside the layer, Tailwind v4's own backdrop-filter composition wins the
-  cascade and strips the blur — the gradient and shadows applied while
-  backdrop-filter computed to `none`, so the glass was not glass. Declared here,
-  after the framework's layers, they hold.
+  These live outside @layer utilities on purpose: inside the layer, Tailwind v4's
+  own backdrop-filter composition wins the cascade and the blur never applies.
+
+  Outside it they still do not fully survive the build, and the note that used to
+  sit here saying they did was wrong. Checked against what is actually served:
+  the dev stylesheet has no backdrop-filter on .bezel at all, and the production
+  bundle keeps only the -webkit- form. Chrome and Safari honour that alias;
+  Firefox, which only supports the unprefixed property, gets no glass from it.
+
+  So the blur is applied inline from components/ui (BLUR), which emits both
+  spellings and cannot be minified away. The declarations below are kept as a
+  fallback for anything that misses the inline style — they are not the
+  mechanism. Everything else here (the gradient, the border, the shadows and the
+  inner ring) does survive and is doing the visible work.
+*/
+/*
+  The double bezel: an outer edge that catches the light and an inner ring set
+  one pixel inside it, so the panel reads as a pane with thickness rather than
+  as a div with a border.
+
+  The inner ring is a pseudo-element rather than a second wrapper div, because
+  every Panel, Fold and Tile in the app would otherwise need its markup changed
+  to gain a millimetre of depth.
+
+  saturate() alongside the blur is what makes it look like glass instead of
+  frosting — it pulls the colour out of whatever is behind rather than only
+  smearing it.
 */
 .bezel {
-  background: linear-gradient(135deg, rgba(255,255,255,0.09) 0%, rgba(255,255,255,0.03) 100%);
-  border: 1px solid rgba(255,255,255,0.10);
+  position: relative;
+  background:
+    linear-gradient(135deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.035) 46%, rgba(255,255,255,0.055) 100%);
+  border: 1px solid rgba(255,255,255,0.11);
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.14),
-    inset 0 0 0 1px rgba(255,255,255,0.03),
-    0 12px 32px -12px rgba(0,0,0,0.9);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+    inset 0 1px 0 rgba(255,255,255,0.16),
+    inset 0 -1px 0 rgba(0,0,0,0.35),
+    0 14px 38px -14px rgba(0,0,0,0.95);
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+}
+
+.bezel::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: inherit;
+  border: 1px solid rgba(255,255,255,0.045);
+  pointer-events: none;
 }
 
 .pill-nav {
@@ -130,12 +184,18 @@ body::before {
 }
 
 :root[data-theme="light"] .bezel {
-  background: linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.65) 100%);
+  background: linear-gradient(135deg, rgba(255,255,255,0.92) 0%, rgba(255,255,255,0.62) 100%);
   border: 1px solid rgba(0,0,0,0.09);
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.9),
-    0 10px 26px -14px rgba(0,0,0,0.35);
+    inset 0 1px 0 rgba(255,255,255,0.95),
+    0 12px 30px -16px rgba(0,0,0,0.38);
 }
+/* On light, an inner white ring is invisible; the depth has to come from a
+   faint dark line instead. */
+:root[data-theme="light"] .bezel::before {
+  border-color: rgba(0,0,0,0.035);
+}
+:root[data-theme="light"] body::after { opacity: 0.02; }
 :root[data-theme="light"] .pill-nav {
   background: rgba(255,255,255,0.78);
   border: 1px solid rgba(0,0,0,0.09);

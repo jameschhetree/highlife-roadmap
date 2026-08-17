@@ -31,7 +31,7 @@ export function ThemeToggle() {
   return (
     <button
       onClick={() => set(!light)}
-      style={BLUR(20)}
+      style={BLUR(24)}
       aria-label={light ? "Switch to dark" : "Switch to light"}
       className="min-h-[48px] px-5 rounded-full bezel text-[16px]"
     >

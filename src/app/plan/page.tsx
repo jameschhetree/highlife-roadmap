@@ -166,7 +166,7 @@ export default function PlanPage() {
   return (
     <div className="min-h-screen">
       <header className="px-3 md:px-8">
-        <div style={BLUR(24, true)} className="sticky top-3 z-30 w-fit max-w-full mx-auto pill-nav px-5 h-[56px] flex items-center gap-3">
+        <div style={BLUR(26)} className="sticky top-3 z-30 w-fit max-w-full mx-auto pill-nav px-5 h-[56px] flex items-center gap-3">
           <Link href="/" className="text-[15px] text-[var(--muted)] hover:text-[var(--text)] min-h-[44px] leading-[44px]">
             ← Roadmap
           </Link>
@@ -177,7 +177,7 @@ export default function PlanPage() {
           </div>
           <button
             onClick={() => setNavOpen((v) => !v)}
-            style={BLUR(20)} className="lg:hidden min-h-[44px] px-5 rounded-full bezel text-[15px]"
+            style={BLUR(24)} className="lg:hidden min-h-[44px] px-5 rounded-full bezel text-[15px]"
           >
             {navOpen ? "Close" : "Sections"}
           </button>
@@ -241,7 +241,7 @@ export default function PlanPage() {
                     </button>
                     <button
                       onClick={() => setEditing(false)}
-                      style={BLUR(20)} className="min-h-[48px] px-6 rounded-full bezel text-[16px]"
+                      style={BLUR(24)} className="min-h-[48px] px-6 rounded-full bezel text-[16px]"
                     >
                       Cancel
                     </button>
@@ -253,13 +253,13 @@ export default function PlanPage() {
                   <div className="mt-10 pt-6 border-t border-white/10 flex flex-wrap gap-3">
                     <button
                       onClick={() => setAsText(false)}
-                      style={BLUR(20)} className="min-h-[48px] px-6 rounded-full bezel text-[16px]"
+                      style={BLUR(24)} className="min-h-[48px] px-6 rounded-full bezel text-[16px]"
                     >
                       Back to the page
                     </button>
                     <button
                       onClick={() => { setEditing(true); setDraft(active.body); }}
-                      style={BLUR(20)} className="min-h-[48px] px-6 rounded-full bezel text-[16px]"
+                      style={BLUR(24)} className="min-h-[48px] px-6 rounded-full bezel text-[16px]"
                     >
                       Edit this section
                     </button>
@@ -281,13 +281,13 @@ export default function PlanPage() {
                 <div className="mt-8 pt-6 border-t border-white/10 flex flex-wrap gap-3">
                   <button
                     onClick={() => setAsText(true)}
-                    style={BLUR(20)} className="min-h-[48px] px-6 rounded-full bezel text-[16px]"
+                    style={BLUR(24)} className="min-h-[48px] px-6 rounded-full bezel text-[16px]"
                   >
                     Read as text
                   </button>
                   <button
                     onClick={() => { setAsText(true); setEditing(true); setDraft(active.body); }}
-                    style={BLUR(20)} className="min-h-[48px] px-6 rounded-full bezel text-[16px] text-[var(--muted)]"
+                    style={BLUR(24)} className="min-h-[48px] px-6 rounded-full bezel text-[16px] text-[var(--muted)]"
                   >
                     Edit
                   </button>
@@ -297,7 +297,7 @@ export default function PlanPage() {
                     return next ? (
                       <button
                         onClick={() => open(next.id)}
-                        style={BLUR(20)}
+                        style={BLUR(24)}
                         className="min-h-[48px] px-6 rounded-full bezel text-[16px] text-[var(--muted)]"
                       >
                         Next: {next.title} →

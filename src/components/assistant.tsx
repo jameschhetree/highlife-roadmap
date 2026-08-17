@@ -56,7 +56,7 @@ export function Assistant({ onChanged }: { onChanged: () => void }) {
     return (
       <button
         onClick={() => setOpen(true)}
-        style={BLUR(24, true)}
+        style={BLUR(26)}
         className="fixed bottom-5 right-5 z-40 min-h-[52px] px-6 rounded-full pill-nav text-[16px]"
       >
         Ask
@@ -66,7 +66,7 @@ export function Assistant({ onChanged }: { onChanged: () => void }) {
 
   return (
     <div className="fixed inset-x-3 bottom-3 z-40 sm:inset-x-auto sm:right-5 sm:w-[420px]">
-      <div style={BLUR(24, true)} className="rounded-2xl pill-nav !rounded-2xl overflow-hidden">
+      <div style={BLUR(26)} className="rounded-2xl pill-nav !rounded-2xl overflow-hidden">
         <div className="flex items-center justify-between px-5 h-[56px] border-b border-white/10">
           <span className="text-[16px]">Ask the roadmap</span>
           <button onClick={() => setOpen(false)} className="min-h-[44px] px-2 text-[15px] text-[var(--muted)]">

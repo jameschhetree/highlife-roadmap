@@ -7,10 +7,12 @@ const it = (id: string, o: Partial<Groupable> = {}): Groupable => ({
 });
 
 test("days away is counted in whole days, not hours", () => {
-  // Due at 9am tomorrow is one day away, not zero because it is under 24 hours.
-  expect(daysAway("2026-08-18T09:00:00-04:00", NOW)).toBe(1);
-  expect(daysAway("2026-08-17T23:00:00-04:00", NOW)).toBe(0);
-  expect(daysAway("2026-08-16T23:00:00-04:00", NOW)).toBe(-1);
+  // Due dates are what an <input type="date"> produces: a calendar date, stored
+  // at UTC midnight. This test used to pass Eastern timestamps, which is a shape
+  // the app never writes, and passing them made a wrong reading look correct.
+  expect(daysAway("2026-08-18T00:00:00.000Z", NOW)).toBe(1);
+  expect(daysAway("2026-08-17T00:00:00.000Z", NOW)).toBe(0);
+  expect(daysAway("2026-08-16T00:00:00.000Z", NOW)).toBe(-1);
 });
 
 test("the day boundary is James's, not the server's", () => {
@@ -75,4 +77,19 @@ test("priority keeps the plan's order rather than the alphabet", () => {
     it("c", { priority: "Standard" }),
   ], "priority");
   expect(g.map((x) => x.label)).toEqual(["Critical", "Standard", "Backlog"]);
+});
+
+test("a due date shows the day it was stored as, not the evening before", () => {
+  // Stored from an <input type="date"> as 2026-08-21T00:00:00Z. Read through
+  // an Eastern clock that instant is 8pm on the 20th, which is how every due
+  // date on the board came to be a day early.
+  const friday = "2026-08-21T00:00:00.000Z";
+  expect(daysAway(friday, new Date("2026-08-21T09:00:00-04:00"))).toBe(0);
+  expect(daysAway(friday, new Date("2026-08-20T09:00:00-04:00"))).toBe(1);
+  expect(daysAway(friday, new Date("2026-08-22T09:00:00-04:00"))).toBe(-1);
+});
+
+test("late Eastern evening does not push a due date into yesterday", () => {
+  const friday = "2026-08-21T00:00:00.000Z";
+  expect(daysAway(friday, new Date("2026-08-21T23:30:00-04:00"))).toBe(0);
 });

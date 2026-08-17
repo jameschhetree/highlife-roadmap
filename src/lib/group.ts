@@ -17,11 +17,18 @@ export type Groupable = {
 
 export type Group<T> = { key: string; label: string; items: T[]; urgent?: boolean };
 
-import { dayNumber } from "./days";
+import { dayNumber, storedDayNumber } from "./days";
 
-/** Whole days from today, counted in Eastern. Negative is in the past. */
+/**
+ * Whole days from today. Negative is in the past.
+ *
+ * The due date is read as the calendar date it was stored as, and today is read
+ * where Jaco is. Reading both the same way gets one of them wrong: a due date
+ * put through the Eastern clock lands on the previous evening, and everything
+ * due Friday grouped itself under Thursday.
+ */
 export function daysAway(due: string, now = new Date()): number {
-  return dayNumber(new Date(due)) - dayNumber(now);
+  return storedDayNumber(new Date(due)) - dayNumber(now);
 }
 
 export function groupByDue<T extends Groupable>(items: T[], now = new Date()): Group<T>[] {

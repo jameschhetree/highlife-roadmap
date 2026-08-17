@@ -13,9 +13,19 @@ import { createContext, useContext, useEffect, useRef, useState } from "react";
  * cannot be minified away or lost to the cascade, and it is verifiable in the
  * browser, which is how this was caught.
  */
-export const BLUR = (px = 20, saturate = false) => ({
-  backdropFilter: `blur(${px}px)${saturate ? " saturate(140%)" : ""}`,
-  WebkitBackdropFilter: `blur(${px}px)${saturate ? " saturate(140%)" : ""}`,
+/**
+ * Saturation is not optional.
+ *
+ * It used to be a flag defaulting to off, so almost every surface got a plain
+ * blur. A blur alone frosts what is behind it; the saturate is what makes it
+ * read as glass rather than as tracing paper. It also meant the stylesheet and
+ * the markup disagreed — .bezel asked for blur(24px) saturate(150%) and the
+ * computed value on every panel came back blur(20px), because an inline style
+ * beats a class and every Panel sets one.
+ */
+export const BLUR = (px = 24, saturate = 150) => ({
+  backdropFilter: `blur(${px}px) saturate(${saturate}%)`,
+  WebkitBackdropFilter: `blur(${px}px) saturate(${saturate}%)`,
 });
 
 export function Eyebrow({ children }: { children: React.ReactNode }) {
@@ -84,6 +94,9 @@ export function SaveGroup({ children, className = "" }: { children: React.ReactN
         <button
           onClick={save}
           disabled={count === 0}
+          // The one bezel surface that had no inline blur, so it was the one
+          // that computed `none` — the class alone cannot be relied on.
+          style={count > 0 ? undefined : BLUR(24)}
           className={`mt-6 min-h-[48px] px-6 rounded-full text-[16px] transition-opacity ${
             count > 0
               ? "bg-[var(--text)] text-[var(--bg)]"
@@ -201,7 +214,7 @@ export function Button({
     <button
       onClick={onClick}
       disabled={disabled}
-      style={solid ? undefined : BLUR(20)}
+      style={solid ? undefined : BLUR(24)}
       className={`group inline-flex items-center gap-3 min-h-[48px] ${arrow ? "pl-6 pr-2" : "px-6"} rounded-full text-[16px]
         transition-[background-color,border-color,transform] duration-300 active:scale-[0.98] disabled:opacity-40
         ${solid ? "bg-[var(--text)] text-[var(--bg)] border border-[var(--text)]" : "bezel text-[var(--text)]"}
@@ -226,7 +239,7 @@ export function Button({
 /** Small pill badge that sits above a major heading. */
 export function Tag({ children }: { children: React.ReactNode }) {
   return (
-    <span style={BLUR(20)} className="inline-block px-3 py-1 mb-4 rounded-full text-[11px] tracking-[0.16em] uppercase
+    <span style={BLUR(24)} className="inline-block px-3 py-1 mb-4 rounded-full text-[11px] tracking-[0.16em] uppercase
       text-[var(--muted)] bezel">
       {children}
     </span>
@@ -271,7 +284,7 @@ export function Panel({
   children, className = "", soft = false,
 }: { children: React.ReactNode; className?: string; soft?: boolean }) {
   return (
-    <div style={BLUR(soft ? 12 : 20)} className={`${soft ? "glass-soft" : "bezel"} rounded-2xl ${className}`}>
+    <div style={BLUR(soft ? 16 : 24)} className={`${soft ? "glass-soft" : "bezel"} rounded-2xl ${className}`}>
       {children}
     </div>
   );
@@ -293,7 +306,7 @@ export function Fold({
 }) {
   const [open, setOpen] = useState(initial);
   return (
-    <div className={`${soft ? "glass-soft" : "bezel"} rounded-2xl`} style={BLUR(soft ? 12 : 20)}>
+    <div className={`${soft ? "glass-soft" : "bezel"} rounded-2xl`} style={BLUR(soft ? 16 : 24)}>
       <button
         onClick={() => setOpen((v) => !v)}
         className="w-full px-5 py-4 flex items-center justify-between gap-3 min-h-[56px] text-left"

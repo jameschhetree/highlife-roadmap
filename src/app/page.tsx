@@ -28,6 +28,7 @@ import { occurrenceToLog, nextOccurrence, pretty } from "@/lib/meetingDates";
 import { measureKr } from "@/lib/measure";
 import { group } from "@/lib/group";
 import { ownsIt, namesIn } from "@/lib/owner";
+import { formatStoredDate } from "@/lib/days";
 import { pace, monthKeyOf, funnel } from "@/lib/pace";
 import { Curve, PaceBar, Funnel, type Point } from "@/components/chart";
 
@@ -189,8 +190,9 @@ const money = (n: number) => `$${Math.round(n / 1000)}K`;
  * months are $6,000 and the difference between $900 and $1,400 is the week.
  */
 const dollars = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
-const fmtDate = (d: string | null) =>
-  d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "";
+// Dates are stored as calendar dates at UTC midnight. Formatted in the
+// browser's zone, every one of them displayed a day early.
+const fmtDate = (d: string | null) => (d ? formatStoredDate(d) : "");
 const today = () => new Date().toISOString().slice(0, 10);
 
 /**
@@ -378,7 +380,7 @@ export default function RoadmapPage() {
           <p className="text-[11px] tracking-[0.2em] uppercase text-[var(--muted-3)] mb-3 px-2">
             HighLife
           </p>
-          <div className="bezel rounded-xl px-3 py-2.5 mb-5" style={BLUR(20)}>
+          <div className="bezel rounded-xl px-3 py-2.5 mb-5" style={BLUR(24)}>
             <p className="text-[15px] leading-tight">HighLife Studios</p>
             <p className="text-[13px] text-[var(--muted-3)] mt-0.5">
               {current ? current.name : "Operating System"}
@@ -440,7 +442,7 @@ export default function RoadmapPage() {
         : "max-w-[1100px] mx-auto pt-6 lg:pt-10 pb-6"}`}>
         <button
           onClick={() => setNavOpen(true)}
-          style={BLUR(20)}
+          style={BLUR(24)}
           className="lg:hidden mb-6 min-h-[46px] px-5 rounded-full bezel text-[15px]"
         >
           Menu
@@ -467,7 +469,7 @@ export default function RoadmapPage() {
         )}
 
         {error && (
-          <div className="mt-5 px-4 py-3.5 rounded-xl text-[16px] leading-relaxed bezel" style={BLUR(20)}>
+          <div className="mt-5 px-4 py-3.5 rounded-xl text-[16px] leading-relaxed bezel" style={BLUR(24)}>
             {error}
           </div>
         )}
@@ -538,7 +540,7 @@ export default function RoadmapPage() {
             </div>
 
             <div className="xl:col-span-3 xl:min-h-0">
-              <ToursCard board={board} />
+              <ToursCard board={board} onOpen={setView} />
             </div>
 
             {/* The tasks, as a card like everything else. They were a bare list
@@ -754,24 +756,43 @@ export default function RoadmapPage() {
                   <Panel className="px-5 py-4 shrink-0">
                     <CardHead title="Per owner" sub="Three to five each, not between you"
                       value={String(named.length)} />
-                    <dl className="divide-y divide-white/[0.08]">
+                    {/* A div, not a dl: the rows are buttons now, and a button
+                        wrapping dt/dd is invalid markup that React hydrates
+                        differently from what the server sent. */}
+                    <div className="divide-y divide-white/[0.08]">
                       {named.map((o) => {
                         const n = open.filter((i) => i.owner === o).length;
                         const state = n > 5 ? "too many" : n < 3 ? "light" : null;
                         return (
-                          <div key={o} className="flex items-baseline justify-between gap-3 py-2.5">
-                            <dt className="text-[15px]">{o}</dt>
-                            <dd className="shrink-0 text-right">
+                          <button
+                            key={o}
+                            onClick={() => setWho(who === o ? "Everyone" : o)}
+                            className={`w-full flex items-baseline justify-between gap-3 py-2.5 text-left min-h-[44px]
+                              rounded-lg px-2 -mx-2 transition-colors hover:bg-[var(--text)]/[0.06]
+                              ${who === o ? "bg-[var(--text)]/[0.09]" : ""}`}
+                          >
+                            <span className="text-[15px]">{o}</span>
+                            <span className="shrink-0 text-right">
                               <span className={`text-[18px] tabular-nums ${n > 5 ? "text-[var(--alert)]" : ""}`}>{n}</span>
                               {state && <span className="ml-2 text-[13px] text-[var(--muted-3)]">{state}</span>}
-                            </dd>
-                          </div>
+                            </span>
+                          </button>
                         );
                       })}
-                    </dl>
+                    </div>
+                    {who !== "Everyone" && (
+                      <button
+                        onClick={() => setWho("Everyone")}
+                        className="mt-2 text-[13px] text-[var(--muted)] hover:text-[var(--text)] min-h-[40px]"
+                      >
+                        Show everyone
+                      </button>
+                    )}
                   </Panel>
                 );
               })()}
+
+              <NumbersCard meetings={meetings} call={call} onOpen={setView} />
 
               {priorities.length > 0 && (
                 <Fold title="Housekeeping" count={`${priorities.length}`} soft>
@@ -845,6 +866,79 @@ function Tile({
         {sub && <p className="mt-2 text-[13px] leading-snug text-[var(--muted)]">{sub}</p>}
       </Panel>
     </button>
+  );
+}
+
+/**
+ * The week's numbers, enterable from the board.
+ *
+ * The scoreboard has one Monday card on it after two weeks of operating, and
+ * getting to it meant Meetings, then the right meeting, then scrolling to the
+ * scorecard. Every chart on this page waits on those numbers.
+ *
+ * So the four that drive what is on screen live here: cash is the pace line,
+ * leads and tours are the funnel. The other eight are not duplicated — a second
+ * place to type the same number is how a board ends up with two answers to what
+ * did we collect. The button goes to the full card for those.
+ */
+function NumbersCard({
+  meetings, call, onOpen,
+}: {
+  meetings: Meeting[];
+  call: (u: string, m: string, b?: unknown) => Promise<boolean>;
+  onOpen: (v: View) => void;
+}) {
+  const monday = [...meetings]
+    .filter((m) => m.kind === "MondayBusiness" || m.kind === "MondayMonthly")
+    .sort((a, b) => Date.parse(b.date) - Date.parse(a.date))[0] ?? null;
+
+  if (!monday) {
+    return (
+      <Panel className="px-5 py-4 shrink-0">
+        <CardHead title="This week's numbers" sub="No Monday card yet" value="—" />
+        <Button onClick={() => onOpen("Meetings")}>Go to meetings</Button>
+      </Panel>
+    );
+  }
+
+  const FIELDS = [
+    "cashCollected", "podcastRevenue", "podcastMrr", "musicRevenue", "leads",
+    "toursBooked", "toursShowed", "tourCloseRate", "recurringConversion",
+    "roomHours", "editTurnaround", "roadmapCompletion",
+  ] as const;
+  const filled = FIELDS.filter((k) => monday[k] != null).length;
+
+  const num = (v: number | null) => (v == null ? "" : String(v));
+
+  return (
+    <Panel className="px-5 py-4 shrink-0">
+      <CardHead
+        title="This week's numbers"
+        sub={fmtDate(monday.date)}
+        value={`${filled}/12`}
+        tone={filled === FIELDS.length ? "ok" : filled === 0 ? "alert" : "warn"}
+      />
+
+      <SaveGroup>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Cash collected" type="number" value={num(monday.cashCollected)}
+            onSave={(v) => call(`/api/meetings/${monday.id}`, "PATCH", { cashCollected: v })} />
+          <Field label="Leads" type="number" value={num(monday.leads)}
+            onSave={(v) => call(`/api/meetings/${monday.id}`, "PATCH", { leads: v })} />
+          <Field label="Tours booked" type="number" value={num(monday.toursBooked)}
+            onSave={(v) => call(`/api/meetings/${monday.id}`, "PATCH", { toursBooked: v })} />
+          <Field label="Tours showed" type="number" value={num(monday.toursShowed)}
+            onSave={(v) => call(`/api/meetings/${monday.id}`, "PATCH", { toursShowed: v })} />
+        </div>
+      </SaveGroup>
+
+      <button
+        onClick={() => onOpen("Meetings")}
+        className="mt-3 text-[14px] text-[var(--muted)] hover:text-[var(--text)] min-h-[40px]"
+      >
+        {filled === FIELDS.length ? "Open the full card →" : `The other ${FIELDS.length - filled} on the full card →`}
+      </button>
+    </Panel>
   );
 }
 
@@ -1017,17 +1111,18 @@ function PaceCard({ board, onOpen }: { board: Board; onOpen: (v: View) => void }
 }
 
 /** Tours as a funnel rather than as three counts in three boxes. */
-function ToursCard({ board }: { board: Board }) {
+function ToursCard({ board, onOpen }: { board: Board; onOpen: (v: View) => void }) {
   const { card, stages, hasFunnel } = board;
 
   if (!hasFunnel) {
     return (
       <Panel className="h-full min-h-0 px-5 py-4">
         <CardHead title="Tours" sub="Nothing to draw yet" value="—" />
-        <p className="text-[15px] leading-relaxed text-[var(--muted)]">
+        <p className="text-[15px] leading-relaxed text-[var(--muted)] mb-4">
           Leads and tours go on the Monday card. The funnel appears the moment
           there are numbers on one.
         </p>
+        <Button arrow onClick={() => onOpen("Meetings")}>Open the Monday card</Button>
       </Panel>
     );
   }
@@ -1049,6 +1144,12 @@ function ToursCard({ board }: { board: Board }) {
             ? `${Math.round(rate)}% showed. Green on your threshold.`
             : `${b! - s!} booked tour${b! - s! === 1 ? "" : "s"} did not turn up. Green is 70% showing.`}
       </p>
+      <button
+        onClick={() => onOpen("Meetings")}
+        className="mt-auto pt-3 text-left text-[14px] text-[var(--muted)] hover:text-[var(--text)] min-h-[40px]"
+      >
+        Open the Monday card →
+      </button>
     </Panel>
   );
 }
@@ -1227,7 +1328,7 @@ function ItemRows({
                   <button
                     onClick={() => setConfirming(null)}
                     className="min-h-[44px] px-5 rounded-full bezel text-[15px]"
-                    style={BLUR(20)}
+                    style={BLUR(24)}
                   >
                     Keep it
                   </button>
@@ -1425,7 +1526,7 @@ function Okrs({
                               <button
                                 onClick={() => call(`/api/krs/${k.id}`, "PATCH", { score: String(measured.score) })}
                                 className="min-h-[46px] px-4 rounded-full bezel text-[15px]"
-                                style={BLUR(20)}
+                                style={BLUR(24)}
                               >
                                 Use {measured.score.toFixed(2)}
                               </button>
@@ -2427,7 +2528,7 @@ function DocGaps({ itemId }: { itemId: string }) {
                       setTimeout(() => setCopied(null), 2000);
                     }}
                     className="mt-3 min-h-[44px] px-5 rounded-full bezel text-[15px]"
-                    style={BLUR(20)}
+                    style={BLUR(24)}
                   >
                     {copied === g.section ? "Copied" : "Copy to paste into the doc"}
                   </button>
