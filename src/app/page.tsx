@@ -17,6 +17,10 @@ import { Eyebrow, Empty, Field, Choice, Button, Tick, Tag, Reveal, Panel, SaveGr
 import { gradeAll, type Card } from "@/lib/grade";
 import { Assistant } from "@/components/assistant";
 import { ThemeToggle } from "@/components/theme";
+import {
+  IconWeek, IconMeeting, IconMoney, IconTarget, IconSystems, IconRevenue,
+  IconContent, IconEvent, IconSop, IconTeam, IconBlocked, IconDecision, IconPlan,
+} from "@/components/icons";
 import { guideFor } from "@/lib/today";
 import { suggest } from "@/lib/priorities";
 import { rollUp, collectedByMonth, monthUnderReview } from "@/lib/rollup";
@@ -61,22 +65,22 @@ type Meeting = {
   prep: string; decisions: string; notes: string;
 };
 
-const TABS: { key: View; label: string; blurb: string }[] = [
+const TABS: { key: View; label: string; blurb: string; icon: (p: { className?: string }) => React.ReactElement }[] = [
   // Ordered the way the plan runs, not alphabetically: today's work, then the
   // meeting that sets it, then the money it serves, then the quarter it rolls
   // up to, then the systems that watch it, then the working surfaces.
-  { key: "ThisWeek", label: "This week", blurb: "Commitments due before next Monday. One owner, one date." },
-  { key: "Meetings", label: "Meetings", blurb: "Monday carries the scorecard. Wednesday and Sunday get a prep brief." },
-  { key: "Money", label: "Money", blurb: "The monthly path to $250K, and the Monday thresholds." },
-  { key: "QuarterlyOKR", label: "OKRs", blurb: "Three company objectives per quarter. No more." },
-  { key: "Systems", label: "Systems", blurb: "Triggers, the offer ladder and the risk register. The conditions that oblige a decision." },
-  { key: "Blocked", label: "Blocked", blurb: "Not a list you add to. Set any item's status to Blocked and it appears here, wherever it lives." },
-  { key: "RevenueProject", label: "Revenue", blurb: "Two things: who owns each way work comes in, and the experiments running against them." },
-  { key: "ContentCalendar", label: "Content", blurb: "Podcast, commercial batches, freestyle, events." },
-  { key: "Event", label: "Events", blurb: "Every event needs one primary KPI." },
-  { key: "SOP", label: "SOPs", blurb: "Documented in the order revenue touches the work." },
-  { key: "Team", label: "Team", blurb: "Who is accountable for what. Owners are picked from this list, so a typo cannot invent a person." },
-  { key: "DecisionLog", label: "Decisions", blurb: "Rockville, hires, packages, room capacity." },
+  { icon: IconWeek, key: "ThisWeek", label: "This week", blurb: "Commitments due before next Monday. One owner, one date." },
+  { icon: IconMeeting, key: "Meetings", label: "Meetings", blurb: "Monday carries the scorecard. Wednesday and Sunday get a prep brief." },
+  { icon: IconMoney, key: "Money", label: "Money", blurb: "The monthly path to $250K, and the Monday thresholds." },
+  { icon: IconTarget, key: "QuarterlyOKR", label: "OKRs", blurb: "Three company objectives per quarter. No more." },
+  { icon: IconSystems, key: "Systems", label: "Systems", blurb: "Triggers, the offer ladder and the risk register. The conditions that oblige a decision." },
+  { icon: IconBlocked, key: "Blocked", label: "Blocked", blurb: "Not a list you add to. Set any item's status to Blocked and it appears here, wherever it lives." },
+  { icon: IconRevenue, key: "RevenueProject", label: "Revenue", blurb: "Two things: who owns each way work comes in, and the experiments running against them." },
+  { icon: IconContent, key: "ContentCalendar", label: "Content", blurb: "Podcast, commercial batches, freestyle, events." },
+  { icon: IconEvent, key: "Event", label: "Events", blurb: "Every event needs one primary KPI." },
+  { icon: IconSop, key: "SOP", label: "SOPs", blurb: "Documented in the order revenue touches the work." },
+  { icon: IconTeam, key: "Team", label: "Team", blurb: "Who is accountable for what. Owners are picked from this list, so a typo cannot invent a person." },
+  { icon: IconDecision, key: "DecisionLog", label: "Decisions", blurb: "Rockville, hires, packages, room capacity." },
 ];
 
 /**
@@ -197,6 +201,7 @@ export default function RoadmapPage() {
     stale: boolean; generatedAt: string | null;
   }>({ focus: [], stale: true, generatedAt: null });
   const [thinking, setThinking] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
   const [people, setPeople] = useState<Person[]>([]);
   const [error, setError] = useState("");
   const [adding, setAdding] = useState(false);
@@ -305,8 +310,26 @@ export default function RoadmapPage() {
   const unowned = items.filter((i) => i.owner === "Unassigned").length;
 
   return (
-    <div className="min-h-screen bg-transparent">
-      <header className="px-5 md:px-10 pt-14 pb-10 max-w-[900px] mx-auto">
+    <div className="min-h-screen lg:pl-[248px]">
+      {/* On a phone the rail is off-canvas, so without this button the whole
+          navigation is unreachable. It was missing on the first pass and the
+          only reason I noticed is that the browser found zero of them. */}
+      {navOpen && (
+        <button
+          aria-label="Close the menu"
+          onClick={() => setNavOpen(false)}
+          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+        />
+      )}
+
+      <header className="px-5 md:px-10 pt-6 lg:pt-14 pb-10 max-w-[900px] mx-auto">
+        <button
+          onClick={() => setNavOpen(true)}
+          style={BLUR(20)}
+          className="lg:hidden mb-6 min-h-[46px] px-5 rounded-full bezel text-[15px]"
+        >
+          Menu
+        </button>
         <Tag>HighLife Operating System</Tag>
         <h1 className="text-[38px] md:text-[52px] leading-[1.02] font-semibold tracking-[-0.03em]">
           Roadmap
@@ -471,57 +494,82 @@ export default function RoadmapPage() {
           </Panel>
         )}
 
-        <div className="mt-7 flex flex-wrap items-center gap-3">
-          <Link href="/plan" className="inline-block">
-            <Button kind="solid" arrow>Read the plan</Button>
-          </Link>
-          <ThemeToggle />
-          <select
-            value={who}
-            onChange={(e) => setWho(e.target.value)}
-            aria-label="Filter by owner"
-            className="min-h-[48px] rounded-full px-5 text-[16px]"
-          >
-            {owners.map((o) => <option key={o} value={o}>{o}</option>)}
-          </select>
-        </div>
+
       </header>
 
-      {/* The pill itself is what sticks. A full-width sticky wrapper is the
-          edge-to-edge bar the standard bans, even when what you see floats. */}
-      <nav className="px-3 md:px-8">
-        <div style={BLUR(24, true)} className="sticky top-3 z-30 w-fit max-w-full mx-auto pill-nav px-2">
-          <div className="flex gap-1 overflow-x-auto no-scrollbar">
+      {/* Left rail, following the HighLevel layout Jaco pointed at: workspace at
+          the top, icon-and-label rows, the current one picked out. Becomes a
+          bottom sheet under 1024px, because a 248px rail on a phone leaves
+          nothing for the content. */}
+      <aside
+        className={`fixed z-40 lg:z-30 inset-y-0 left-0 w-[248px] shrink-0 overflow-y-auto no-scrollbar
+          border-r border-white/10 bg-[var(--surface)] transition-transform duration-300
+          ${navOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`}
+      >
+        <div className="px-4 pt-5 pb-4">
+          <p className="text-[11px] tracking-[0.2em] uppercase text-[var(--muted-3)] mb-3 px-2">
+            HighLife
+          </p>
+          <div className="bezel rounded-xl px-3 py-2.5 mb-5" style={BLUR(20)}>
+            <p className="text-[15px] leading-tight">HighLife Studios</p>
+            <p className="text-[13px] text-[var(--muted-3)] mt-0.5">
+              {current ? current.name : "Operating System"}
+            </p>
+          </div>
+
+          <nav className="space-y-0.5">
             {TABS.filter((t) => t.key !== "Blocked" || blocked > 0).map((t) => {
               const n = t.key === "Blocked" ? blocked
-                : t.key === "Systems" ? systems.triggers.filter((x) => x.firing).length
                 : t.key === "Team" ? people.filter((p) => p.active).length
                 : ["Money", "Meetings", "QuarterlyOKR"].includes(t.key) ? 0
                 : byOwner(items.filter((i) => i.view === t.key)).length;
               const active = view === t.key;
+              const Icon = t.icon;
               return (
                 <button
                   key={t.key}
-                  onClick={() => setView(t.key)}
-                  className={`shrink-0 min-h-[46px] px-4 my-1 rounded-full text-[15px] whitespace-nowrap
-                    transition-[background-color,color] duration-300 ${
-                    active ? "bg-[var(--text)] text-[var(--bg)]" : "text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--text)]/[0.06]"
+                  onClick={() => { setView(t.key); setNavOpen(false); }}
+                  className={`w-full min-h-[46px] px-3 rounded-xl flex items-center gap-3 text-[15px]
+                    transition-colors duration-200 ${
+                    active
+                      ? "bg-[var(--text)]/[0.10] text-[var(--text)]"
+                      : "text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--text)]/[0.05]"
                   }`}
                 >
-                  {t.label}
+                  <Icon className={`w-5 h-5 shrink-0 ${active ? "" : "opacity-70"}`} />
+                  <span className="flex-1 text-left">{t.label}</span>
                   {n > 0 && (
-                    <span className={`ml-2 text-[13px] tabular-nums ${active ? "text-[var(--bg)] opacity-60" : "text-[var(--muted-3)]"}`}>
-                      {n}
-                    </span>
+                    <span className="text-[13px] tabular-nums text-[var(--muted-3)]">{n}</span>
                   )}
                 </button>
               );
             })}
+          </nav>
+
+          <div className="mt-6 pt-5 border-t border-white/10 space-y-0.5">
+            <Link
+              href="/plan"
+              className="w-full min-h-[46px] px-3 rounded-xl flex items-center gap-3 text-[15px] text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--text)]/[0.05]"
+            >
+              <IconPlan className="w-5 h-5 shrink-0 opacity-70" />
+              <span>Read the plan</span>
+            </Link>
+            <div className="px-3 pt-3 space-y-3">
+              <ThemeToggle />
+              <select
+                value={who}
+                onChange={(e) => setWho(e.target.value)}
+                aria-label="Filter by owner"
+                className="w-full min-h-[44px] rounded-xl px-3 text-[15px]"
+              >
+                {owners.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </div>
           </div>
         </div>
-      </nav>
+      </aside>
 
-      <main className="max-w-[900px] mx-auto px-5 md:px-10 pt-12 pb-32">
+      <main className="max-w-[900px] mx-auto px-5 md:px-10 pb-32">
         <p className="text-[16px] leading-relaxed text-[var(--muted)] mb-7">
           {TABS.find((t) => t.key === view)?.blurb}
           {who !== "Everyone" && <span className="text-[var(--text)]"> Showing {who} only.</span>}
