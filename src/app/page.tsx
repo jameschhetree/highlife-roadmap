@@ -1572,6 +1572,8 @@ function SopEditor({
                 {item.sop!.published ? " · published" : " · draft"}
               </span>
             </div>
+            {linked && <DocGaps itemId={item.id} />}
+
             {linked && (
               <div className="mb-6">
                 <div className="rounded-xl overflow-hidden border border-white/10 bg-white">
@@ -1888,5 +1890,104 @@ function Team({
         </div>
       </div>
     </>
+  );
+}
+
+
+/**
+ * What a linked Google Doc does not cover, and the words to fix it.
+ *
+ * The app cannot write to the Doc — it has read-only calendar access and asking
+ * for write access to Drive to append a paragraph would be a wildly
+ * disproportionate permission. So it drafts and he pastes.
+ */
+function DocGaps({ itemId }: { itemId: string }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState<{
+    covered: string[];
+    gaps: { section: string; draft: string; assumption: string }[];
+  } | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+
+  const run = async () => {
+    setBusy(true); setError(""); setResult(null);
+    const r = await fetch("/api/sops/gaps", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ itemId }),
+    });
+    setBusy(false);
+    if (!r.ok) { setError((await r.json().catch(() => ({}))).error ?? "Could not read it."); return; }
+    setResult(await r.json());
+  };
+
+  return (
+    <div className="mb-6">
+      {!result && (
+        <>
+          <Button onClick={run} disabled={busy}>
+            {busy ? "Reading the doc…" : "What is this doc missing?"}
+          </Button>
+          {error && <p className="mt-3 text-[15px] text-[var(--alert)]">{error}</p>}
+        </>
+      )}
+
+      {result && (
+        <Panel className="px-5 py-5">
+          <p className="text-[11px] tracking-[0.18em] uppercase text-[var(--muted-3)] mb-3">
+            Against the house format
+          </p>
+
+          {result.covered.length > 0 && (
+            <p className="text-[15px] leading-relaxed text-[var(--muted)] mb-5">
+              Already covered: {result.covered.map((c) => c.split("(")[0].trim()).join(", ")}.
+            </p>
+          )}
+
+          {result.gaps.length === 0 ? (
+            <p className="text-[16px] leading-relaxed">Nothing missing. This one is complete.</p>
+          ) : (
+            <div className="space-y-6">
+              {result.gaps.map((g) => (
+                <div key={g.section}>
+                  <p className="text-[16px] mb-2">
+                    <span className="text-[var(--warn)]">Missing</span> · {g.section}
+                  </p>
+                  <pre className="whitespace-pre-wrap text-[15px] leading-relaxed text-[var(--muted)] bg-[var(--text)]/[0.04] rounded-lg p-4">
+{g.draft}
+                  </pre>
+                  {g.assumption && (
+                    <p className="mt-2 text-[14px] leading-relaxed text-[var(--muted-3)]">
+                      Assumed: {g.assumption}
+                    </p>
+                  )}
+                  <button
+                    onClick={() => {
+                      navigator.clipboard?.writeText(g.draft);
+                      setCopied(g.section);
+                      setTimeout(() => setCopied(null), 2000);
+                    }}
+                    className="mt-3 min-h-[44px] px-5 rounded-full bezel text-[15px]"
+                    style={BLUR(20)}
+                  >
+                    {copied === g.section ? "Copied" : "Copy to paste into the doc"}
+                  </button>
+                </div>
+              ))}
+              <p className="text-[14px] leading-relaxed text-[var(--muted-3)]">
+                Paste these at the bottom of the doc. I cannot write to it — this app only has
+                read-only access to your calendar, and asking for write access to your whole Drive to
+                append a paragraph is not a trade worth making.
+              </p>
+            </div>
+          )}
+
+          <div className="mt-6">
+            <Button onClick={run} disabled={busy}>{busy ? "Reading…" : "Check again"}</Button>
+          </div>
+        </Panel>
+      )}
+    </div>
   );
 }
