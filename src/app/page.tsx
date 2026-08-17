@@ -26,6 +26,7 @@ import { suggest } from "@/lib/priorities";
 import { rollUp, collectedByMonth, monthUnderReview } from "@/lib/rollup";
 import { occurrenceToLog, nextOccurrence, pretty } from "@/lib/meetingDates";
 import { measureKr } from "@/lib/measure";
+import { group } from "@/lib/group";
 
 type View =
   | "ThisWeek" | "Meetings" | "QuarterlyOKR" | "Money" | "RevenueProject"
@@ -215,6 +216,7 @@ export default function RoadmapPage() {
   const [thinking, setThinking] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [showWeeks, setShowWeeks] = useState(false);
+  const [groupBy, setGroupBy] = useState<"due" | "owner" | "priority" | "none">("due");
   const [people, setPeople] = useState<Person[]>([]);
   const [error, setError] = useState("");
   const [adding, setAdding] = useState(false);
@@ -633,7 +635,7 @@ export default function RoadmapPage() {
                 clearing it.
               </Empty>
             ) : (
-              <Items items={visible} call={call} ownerOptions={ownerOptions} />
+              <Items items={visible} call={call} ownerOptions={ownerOptions} groupBy={groupBy} onGroupBy={setGroupBy} />
             )}
             {view !== "Blocked" && (
               <AddItem
@@ -729,20 +731,74 @@ function Row({ k, v, big, warn }: { k: string; v: string; big?: boolean; warn?: 
 }
 
 function Items({
-  items, call, ownerOptions,
+  items, call, ownerOptions, groupBy = "due", onGroupBy,
 }: {
   items: Item[];
   call: (u: string, m: string, b?: unknown) => Promise<boolean>;
   ownerOptions: string[];
+  groupBy?: "due" | "owner" | "priority" | "none";
+  onGroupBy?: (v: "due" | "owner" | "priority" | "none") => void;
 }) {
   const [open, setOpen] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
   if (items.length === 0) return <Empty>Nothing here yet.</Empty>;
 
+  const groups =
+    groupBy === "none"
+      ? [{ key: "all", label: "", items, urgent: false }]
+      : group(items as never, groupBy);
+
+  return (
+    <>
+      {onGroupBy && items.length > 2 && (
+        <div className="flex items-center gap-3 mb-4">
+          <span className="text-[13px] text-[var(--muted-3)]">Group by</span>
+          <select
+            value={groupBy}
+            onChange={(e) => onGroupBy(e.target.value as never)}
+            className="min-h-[40px] rounded-full px-4 text-[15px]"
+          >
+            <option value="due">Due date</option>
+            <option value="owner">Owner</option>
+            <option value="priority">Priority</option>
+            <option value="none">Nothing</option>
+          </select>
+        </div>
+      )}
+
+      {groups.map((g) => (
+        <section key={g.key} className="mb-7">
+          {g.label && (
+            <div className="flex items-baseline gap-3 mb-1">
+              <h3 className={`text-[13px] tracking-[0.14em] uppercase ${g.urgent ? "text-[var(--alert)]" : "text-[var(--muted-3)]"}`}>
+                {g.label}
+              </h3>
+              <span className="text-[13px] tabular-nums text-[var(--muted-3)]">{g.items.length}</span>
+            </div>
+          )}
+          <ItemRows
+            items={g.items as Item[]} call={call} ownerOptions={ownerOptions}
+            open={open} setOpen={setOpen} confirming={confirming} setConfirming={setConfirming}
+          />
+        </section>
+      ))}
+    </>
+  );
+}
+
+function ItemRows({
+  items, call, ownerOptions, open, setOpen, confirming, setConfirming,
+}: {
+  items: Item[];
+  call: (u: string, m: string, b?: unknown) => Promise<boolean>;
+  ownerOptions: string[];
+  open: string | null; setOpen: (v: string | null) => void;
+  confirming: string | null; setConfirming: (v: string | null) => void;
+}) {
   return (
     <div className="divide-y divide-white/10 border-t border-white/10">
       {items.map((it) => (
-        <div key={it.id} className="py-5">
+        <div key={it.id} className="py-3.5">
           <div className="flex items-start gap-4">
             <Tick
               done={it.status === "Done"}
@@ -755,7 +811,7 @@ function Items({
               <span className={`block text-[18px] leading-snug ${it.status === "Done" ? "text-[var(--muted-3)] line-through" : ""}`}>
                 {it.title}
               </span>
-              <span className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[15px] text-[var(--muted)]">
+              <span className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[14px] text-[var(--muted)]">
                 <span className={it.owner === "Unassigned" ? "text-[var(--alert)]" : "text-[var(--text)]"}>
                   {it.owner === "Unassigned" ? "Needs an owner" : it.owner}
                 </span>
