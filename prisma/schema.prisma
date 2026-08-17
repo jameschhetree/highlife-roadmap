@@ -392,6 +392,28 @@ model SopDoc {
   updatedAt DateTime @updatedAt
 }
 
+/// Who can own something, and what they are accountable for.
+///
+/// Owners were free text, so "Marketing/Sales" and "Marketing partner" were two
+/// different people as far as the app was concerned, and a typo created a
+/// phantom owner nobody would ever notice. This is the roster: section 16's
+/// roles, plus whoever gets added.
+///
+/// Not login accounts. Everyone still signs in with the same password — this is
+/// about who is accountable, not who is authenticated.
+model Person {
+  id        String  @id @default(cuid())
+  name      String  @unique
+  role      String  @default("")
+  /// What section 16 says this role owns.
+  owns      String  @default("")
+  active    Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model ChatLog {
   id        String   @id @default(cuid())
   role      String

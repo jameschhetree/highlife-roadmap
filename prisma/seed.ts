@@ -458,7 +458,39 @@ const CHANNELS: { title: string; owner: string; kpi: string; notes: string }[] =
   },
 ];
 
+// Section 16's operating structure, with what each role owns in the plan's own
+// words. "Unassigned" is a real entry so that not having decided is a choice
+// you can see rather than an empty box.
+const PEOPLE: [string, string, string][] = [
+  ["Jaco", "CEO", "Strategy, revenue target, key sales and partnerships, marketing partner oversight, finance decisions, the Monday meeting, brand direction."],
+  ["JoJo", "Founder, President, Lead Engineer", "Studio operations, production quality, engineer leadership, delivery systems, the Wednesday meeting, creative and technical standards."],
+  ["Marketing partner", "Marketing + Sales Partner", "Paid ads, AI outbound, HighLevel, landing pages and automation, pipeline generation, follow-up and sales conversion. 15% first-sale commission."],
+  ["Engineers", "Engineers / Producers", "Client experience, technical execution, on-time sessions, quality, upsell signals, retention."],
+  ["Editing lead", "Editing", "Video edit, QA and revision. Delivery inside the published 5-7 business-day expectation."],
+  ["Client Success", "Client success", "Recurring client check-ins, renewals, testimonials and referrals."],
+  ["Interns", "Intern team", "Research, outreach support, content and admin tasks, event support, project execution under clear owners."],
+  ["Unassigned", "Nobody yet", "An item with no owner is an idea, not a task. Assign one."],
+];
+
 async function main() {
+  // This seed deletes everything and rebuilds it from the plan. Run against a
+  // database people are using, it destroys their work — which is exactly what
+  // happened on 2026-08-17: adding the team roster meant reseeding, and the
+  // reseed wiped the commitments Jaco had just written and resurrected the ones
+  // he had deleted. He reported it as a bug in the app. It was me.
+  //
+  // It now refuses unless SEED_FORCE=1 is set, so it can never be a side effect
+  // of adding a table again.
+  const existing = await prisma.item.count();
+  if (existing > 0 && process.env.SEED_FORCE !== "1") {
+    console.error(
+      `Refusing to seed: ${existing} items already exist and this would delete them.\n` +
+      `Add new tables with a migration, not a reseed.\n` +
+      `If you genuinely mean to wipe and rebuild, run: SEED_FORCE=1 npm run seed`
+    );
+    process.exit(1);
+  }
+
   console.log("Clearing previous roadmap structure…");
   await prisma.item.deleteMany();
   await prisma.keyResult.deleteMany();
@@ -469,6 +501,7 @@ async function main() {
   await prisma.threshold.deleteMany();
   await prisma.ninetyDayTest.deleteMany();
   await prisma.planSection.deleteMany();
+  await prisma.person.deleteMany();
   await prisma.trigger.deleteMany();
   await prisma.offer.deleteMany();
   await prisma.risk.deleteMany();
@@ -601,6 +634,9 @@ async function main() {
       name: o.name, price: o.price, designedFor: o.forWho, scope: o.scope,
       isPackage: o.pkg !== false, sortOrder: i,
     })),
+  });
+  await prisma.person.createMany({
+    data: PEOPLE.map(([name, role, owns], i) => ({ name, role, owns, sortOrder: i })),
   });
   await prisma.risk.createMany({
     data: RISKS.map(([risk, showsUpAs, mitigation], i) => ({ risk, showsUpAs, mitigation, sortOrder: i })),

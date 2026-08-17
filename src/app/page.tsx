@@ -24,7 +24,7 @@ import { occurrenceToLog, nextOccurrence, pretty } from "@/lib/meetingDates";
 
 type View =
   | "ThisWeek" | "Meetings" | "QuarterlyOKR" | "Money" | "RevenueProject"
-  | "ContentCalendar" | "Event" | "SOP" | "Systems" | "Blocked" | "DecisionLog";
+  | "ContentCalendar" | "Event" | "SOP" | "Systems" | "Team" | "Blocked" | "DecisionLog";
 
 type Item = {
   id: string; title: string; owner: string; pillar: string; view: string;
@@ -48,6 +48,7 @@ type Week = { id: string; week: number; objective: string; deliverable: string; 
 type Month = { id: string; key: string; label: string; target: number; cumulative: number };
 type Threshold = { id: string; metric: string; green: string; yellow: string; red: string };
 type Test = { id: string; text: string; passed: boolean };
+type Person = { id: string; name: string; role: string; owns: string; active: boolean };
 type Trigger = { id: string; kind: string; signal: string; condition: string; action: string; firing: boolean; notes: string };
 type Offer = { id: string; name: string; price: string; designedFor: string; scope: string; isPackage: boolean; costStudied: boolean };
 type Risk = { id: string; risk: string; showsUpAs: string; mitigation: string; mitigated: boolean; owner: string };
@@ -74,6 +75,7 @@ const TABS: { key: View; label: string; blurb: string }[] = [
   { key: "ContentCalendar", label: "Content", blurb: "Podcast, commercial batches, freestyle, events." },
   { key: "Event", label: "Events", blurb: "Every event needs one primary KPI." },
   { key: "SOP", label: "SOPs", blurb: "Documented in the order revenue touches the work." },
+  { key: "Team", label: "Team", blurb: "Who is accountable for what. Owners are picked from this list, so a typo cannot invent a person." },
   { key: "DecisionLog", label: "Decisions", blurb: "Rockville, hires, packages, room capacity." },
 ];
 
@@ -195,6 +197,7 @@ export default function RoadmapPage() {
     stale: boolean; generatedAt: string | null;
   }>({ focus: [], stale: true, generatedAt: null });
   const [thinking, setThinking] = useState(false);
+  const [people, setPeople] = useState<Person[]>([]);
   const [error, setError] = useState("");
   const [adding, setAdding] = useState(false);
 
@@ -204,8 +207,8 @@ export default function RoadmapPage() {
   }, [router]);
 
   const load = async () => {
-    const [r, m, sy] = await Promise.all([
-      fetch("/api/roadmap"), fetch("/api/meetings"), fetch("/api/systems"),
+    const [r, m, sy, pe] = await Promise.all([
+      fetch("/api/roadmap"), fetch("/api/meetings"), fetch("/api/systems"), fetch("/api/people"),
     ]);
     if (!r.ok) { setError("Could not load the roadmap."); return; }
     const d = await r.json();
@@ -213,6 +216,7 @@ export default function RoadmapPage() {
     setMonths(d.months ?? []); setThresholds(d.thresholds ?? []); setTests(d.tests ?? []);
     if (m.ok) setMeetings(await m.json());
     if (sy.ok) setSystems(await sy.json());
+    if (pe.ok) setPeople(await pe.json());
     fetch("/api/focus").then((r) => (r.ok ? r.json() : null)).then((d) => d && setFocus(d)).catch(() => {});
   };
   useEffect(() => { if (ready) load(); }, [ready]);
@@ -230,9 +234,19 @@ export default function RoadmapPage() {
     return started.length ? started[started.length - 1] : dated[0];
   }, [weeks]);
 
+  // The filter offers everyone on the roster plus anyone who already owns
+  // something, so a name left over from before the roster existed is still
+  // findable rather than being quietly hidden.
   const owners = useMemo(
-    () => ["Everyone", ...Array.from(new Set(items.map((i) => i.owner))).sort()],
-    [items]
+    () => [
+      "Everyone",
+      ...Array.from(new Set([...people.filter((p) => p.active).map((p) => p.name), ...items.map((i) => i.owner)])).sort(),
+    ],
+    [items, people]
+  );
+  const ownerOptions = useMemo(
+    () => Array.from(new Set([...people.filter((p) => p.active).map((p) => p.name), ...items.map((i) => i.owner)])).sort(),
+    [items, people]
   );
   const byOwner = (list: Item[]) => (who === "Everyone" ? list : list.filter((i) => i.owner === who));
 
@@ -481,6 +495,7 @@ export default function RoadmapPage() {
             {TABS.filter((t) => t.key !== "Blocked" || blocked > 0).map((t) => {
               const n = t.key === "Blocked" ? blocked
                 : t.key === "Systems" ? systems.triggers.filter((x) => x.firing).length
+                : t.key === "Team" ? people.filter((p) => p.active).length
                 : ["Money", "Meetings", "QuarterlyOKR"].includes(t.key) ? 0
                 : byOwner(items.filter((i) => i.view === t.key)).length;
               const active = view === t.key;
@@ -522,6 +537,7 @@ export default function RoadmapPage() {
         {view === "Money" && <Money months={months} thresholds={thresholds} tests={tests} meetings={meetings} call={call} />}
         {view === "Meetings" && <MeetingsView meetings={meetings} months={months} thresholds={thresholds} call={call} />}
         {view === "Systems" && <Systems data={systems} call={call} />}
+        {view === "Team" && <Team people={people} items={items} call={call} onDone={load} />}
 
         {view === "ThisWeek" && currentWeek && (
           <Panel className="mb-8 px-5 py-5">
@@ -540,7 +556,7 @@ export default function RoadmapPage() {
           </Panel>
         )}
 
-        {!["QuarterlyOKR", "Money", "Meetings", "Systems"].includes(view) && (
+        {!["QuarterlyOKR", "Money", "Meetings", "Systems", "Team"].includes(view) && (
           <>
             {view === "RevenueProject" && (
               <div className="mb-8">
@@ -557,7 +573,7 @@ export default function RoadmapPage() {
             {view === "SOP" && <SopImport onDone={load} />}
 
             {view === "SOP" ? (
-              <SopSplit items={visible} call={call} />
+              <SopSplit items={visible} call={call} ownerOptions={ownerOptions} />
             ) : visible.length === 0 && view === "Blocked" ? (
               <Empty>
                 Nothing is blocked, which is what you want. This tab fills itself: open any item
@@ -565,7 +581,7 @@ export default function RoadmapPage() {
                 clearing it.
               </Empty>
             ) : (
-              <Items items={visible} call={call} />
+              <Items items={visible} call={call} ownerOptions={ownerOptions} />
             )}
             {view !== "Blocked" && (
               <AddItem
@@ -651,8 +667,12 @@ function Row({ k, v, big, warn }: { k: string; v: string; big?: boolean; warn?: 
 }
 
 function Items({
-  items, call,
-}: { items: Item[]; call: (u: string, m: string, b?: unknown) => Promise<boolean> }) {
+  items, call, ownerOptions,
+}: {
+  items: Item[];
+  call: (u: string, m: string, b?: unknown) => Promise<boolean>;
+  ownerOptions: string[];
+}) {
   const [open, setOpen] = useState<string | null>(null);
   if (items.length === 0) return <Empty>Nothing here yet.</Empty>;
 
@@ -688,7 +708,12 @@ function Items({
           {open === it.id && (
             <SaveGroup className="pt-6 sm:pl-[34px]">
               <div className="grid gap-5 sm:grid-cols-2">
-              <Field label="Owner" value={it.owner} onSave={(v) => call(`/api/items/${it.id}`, "PATCH", { owner: v })} />
+              <Choice
+                label="Owner"
+                value={it.owner}
+                options={ownerOptions}
+                onSave={(v) => call(`/api/items/${it.id}`, "PATCH", { owner: v })}
+              />
               <Choice label="Pillar" value={it.pillar} options={PILLARS} onSave={(v) => call(`/api/items/${it.id}`, "PATCH", { pillar: v })} />
               <Choice label="Priority" value={it.priority} options={PRIORITIES} onSave={(v) => call(`/api/items/${it.id}`, "PATCH", { priority: v })} />
               <Choice label="Status" value={it.status} options={STATUSES} onSave={(v) => call(`/api/items/${it.id}`, "PATCH", { status: v })} />
@@ -1481,8 +1506,12 @@ function SopEditor({
  * those are the ones with a deadline.
  */
 function SopSplit({
-  items, call,
-}: { items: Item[]; call: (u: string, m: string, b?: unknown) => Promise<boolean> }) {
+  items, call, ownerOptions,
+}: {
+  items: Item[];
+  call: (u: string, m: string, b?: unknown) => Promise<boolean>;
+  ownerOptions: string[];
+}) {
   const published = items.filter((i) => i.sop?.published);
   const drafted = items.filter((i) => i.sop && !i.sop.published);
   const unwritten = items.filter((i) => !i.sop);
@@ -1508,19 +1537,19 @@ function SopSplit({
       {published.length > 0 && (
         <section className="mb-10">
           <Eyebrow>Published</Eyebrow>
-          <Items items={published} call={call} />
+          <Items items={published} call={call} ownerOptions={ownerOptions} />
         </section>
       )}
       {drafted.length > 0 && (
         <section className="mb-10">
           <Eyebrow>Drafted — read it, then publish</Eyebrow>
-          <Items items={drafted} call={call} />
+          <Items items={drafted} call={call} ownerOptions={ownerOptions} />
         </section>
       )}
       {unwritten.length > 0 && (
         <section className="mb-10">
           <Eyebrow>Still to write</Eyebrow>
-          <Items items={unwritten} call={call} />
+          <Items items={unwritten} call={call} ownerOptions={ownerOptions} />
         </section>
       )}
     </>
@@ -1591,5 +1620,81 @@ function SopImport({ onDone }: { onDone: () => void }) {
         <Button onClick={() => { setOpen(false); setError(""); setResult(null); }}>Close</Button>
       </div>
     </Panel>
+  );
+}
+
+
+/** The roster, and what each person is carrying. */
+function Team({
+  people, items, call, onDone,
+}: {
+  people: Person[]; items: Item[];
+  call: (u: string, m: string, b?: unknown) => Promise<boolean>;
+  onDone: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [role, setRole] = useState("");
+  const [error, setError] = useState("");
+
+  const add = async () => {
+    setError("");
+    const r = await fetch("/api/people", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, role }),
+    });
+    if (!r.ok) { setError((await r.json().catch(() => ({}))).error ?? "Could not add."); return; }
+    setName(""); setRole(""); onDone();
+  };
+
+  return (
+    <>
+      <div className="divide-y divide-white/10 border-t border-white/10">
+        {people.filter((p) => p.active).map((p) => {
+          const open = items.filter((i) => i.owner === p.name && i.status !== "Done").length;
+          const week = items.filter(
+            (i) => i.owner === p.name && i.view === "ThisWeek" && i.status !== "Done"
+          ).length;
+          return (
+            <div key={p.id} className="py-5">
+              <div className="flex items-baseline justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-[18px]">{p.name}</p>
+                  {p.role && <p className="mt-1 text-[15px] text-[var(--muted)]">{p.role}</p>}
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className={`text-[20px] tabular-nums ${week > 5 ? "text-[var(--alert)]" : ""}`}>{week}</p>
+                  <p className="text-[13px] text-[var(--muted-3)]">this week</p>
+                </div>
+              </div>
+              {p.owns && (
+                <p className="mt-2.5 text-[15px] leading-relaxed text-[var(--muted-3)]">{p.owns}</p>
+              )}
+              {open > 0 && (
+                <p className="mt-2 text-[14px] text-[var(--muted-3)]">
+                  {open} open item{open === 1 ? "" : "s"} in total
+                </p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-8 grid gap-4 max-w-[520px]">
+        <Eyebrow>Add someone</Eyebrow>
+        <input
+          value={name} onChange={(e) => setName(e.target.value)} placeholder="Name"
+          className="w-full min-h-[48px] px-3.5 text-[16px]"
+        />
+        <input
+          value={role} onChange={(e) => setRole(e.target.value)} placeholder="Role, e.g. Podcast producer"
+          className="w-full min-h-[48px] px-3.5 text-[16px]"
+        />
+        {error && <p className="text-[15px] text-[var(--alert)]">{error}</p>}
+        <div>
+          <Button kind="solid" onClick={add} disabled={!name.trim()}>Add to the roster</Button>
+        </div>
+      </div>
+    </>
   );
 }
