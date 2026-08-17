@@ -75,8 +75,8 @@ export function Curve({ points, now, height = H }: {
       aria-label={`Cumulative target ${money(max)}, actual to date ${last ? money(last.p.actual!) : "none yet"}`}>
       <defs>
         <linearGradient id="curveFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="currentColor" stopOpacity="0.16" />
-          <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
+          <stop offset="0%" stopColor="var(--c1)" stopOpacity="0.34" />
+          <stop offset="100%" stopColor="var(--c1)" stopOpacity="0" />
         </linearGradient>
       </defs>
 
@@ -99,9 +99,9 @@ export function Curve({ points, now, height = H }: {
         <>
           <path d={`${actualPath} L${x(last!.i)} ${y(0)} L${x(actualPts[0].i)} ${y(0)} Z`}
             fill="url(#curveFill)" stroke="none" />
-          <path d={actualPath} fill="none" stroke="currentColor" strokeWidth="2"
+          <path d={actualPath} fill="none" stroke="var(--c1)" strokeWidth="2.25"
             strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-          <circle cx={x(last!.i)} cy={y(last!.p.actual!)} r="3.5" fill="currentColor" />
+          <circle cx={x(last!.i)} cy={y(last!.p.actual!)} r="3.5" fill="var(--c1)" />
         </>
       )}
 
@@ -195,15 +195,62 @@ export function PaceBar({ pct, through }: { pct: number; through: number }) {
   );
 }
 
+/**
+ * Where the open work actually is, by pillar.
+ *
+ * The board could tell you there were nine commitments and who owned each one,
+ * and nothing anywhere said that every single one of them was Operations —
+ * which, against a plan whose whole argument is that podcast is the cash engine,
+ * is the most useful thing on the page.
+ *
+ * Horizontal bars because the labels are words, and words on a vertical axis
+ * read fine at any width.
+ */
+export function Bars({ rows, total }: {
+  rows: { label: string; value: number; colour: string }[];
+  total?: number;
+}) {
+  const max = Math.max(...rows.map((r) => r.value), 1);
+  const sum = total ?? rows.reduce((a, r) => a + r.value, 0);
+
+  return (
+    <div className="space-y-2.5">
+      {rows.map((r) => (
+        <div key={r.label}>
+          <div className="flex items-baseline justify-between gap-3 mb-1">
+            <span className="text-[14px] text-[var(--muted)] truncate">{r.label}</span>
+            <span className="shrink-0 text-[14px] tabular-nums">
+              {r.value}
+              {sum > 0 && (
+                <span className="ml-2 text-[12px] text-[var(--muted-3)]">
+                  {Math.round((r.value / sum) * 100)}%
+                </span>
+              )}
+            </span>
+          </div>
+          <div className="h-1.5 rounded-full bg-[var(--text)]/[0.07] overflow-hidden">
+            <div
+              className="h-full rounded-full transition-[width] duration-700"
+              style={{ width: `${(r.value / max) * 100}%`, background: r.colour }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /** Stage counts as bars, each labelled with the drop from the stage above. */
 export function Funnel({ stages }: {
   stages: { label: string; value: number | null; rate: number | null; of: string | null }[];
 }) {
   const max = Math.max(...stages.map((s) => s.value ?? 0), 1);
+  // Cool to warm down the funnel: the last bar is the one that pays.
+  const tones = ["var(--c5)", "var(--c1)", "var(--c2)"];
 
   return (
     <div className="space-y-3">
-      {stages.map((s) => (
+      {stages.map((s, i) => (
         <div key={s.label}>
           <div className="flex items-baseline justify-between gap-3 mb-1.5">
             <span className="text-[14px] text-[var(--muted)]">{s.label}</span>
@@ -217,8 +264,8 @@ export function Funnel({ stages }: {
             </span>
           </div>
           <div className="h-1.5 rounded-full bg-[var(--text)]/[0.07] overflow-hidden">
-            <div className="h-full rounded-full bg-[var(--text)]/45 transition-[width] duration-700"
-              style={{ width: `${((s.value ?? 0) / max) * 100}%` }} />
+            <div className="h-full rounded-full transition-[width] duration-700"
+              style={{ width: `${((s.value ?? 0) / max) * 100}%`, background: tones[i] ?? "var(--c7)" }} />
           </div>
         </div>
       ))}

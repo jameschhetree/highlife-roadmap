@@ -145,7 +145,7 @@ export function Field({
   };
 
   const shared =
-    "w-full px-3.5 py-3 text-[16px] leading-relaxed rounded-[10px] " +
+    "w-full min-w-0 px-3.5 py-3 text-[16px] leading-relaxed rounded-[10px] " +
     "bg-white/[0.04] border border-white/10 text-[var(--text)] placeholder:text-[var(--muted-3)] " +
     "focus:outline-none focus:border-white/40";
 

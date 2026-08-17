@@ -280,10 +280,80 @@ select option { background: #141414; color: #ffffff; }
   --alert: #ff6b6b;
   --warn: #facc15;
   --ok: #4ade80;
+
+  /*
+    A chart palette, because Jaco asked for colour and a board drawn entirely in
+    white has no way to tell two series apart.
+
+    Muted rather than neon — the standard bans neon accents and this sits on
+    black next to red, amber and green that already mean something. These are
+    for identity only: which bar is Podcast, which is Music. They never carry a
+    verdict, so nothing here can be mistaken for the red that does.
+  */
+  --c1: #7aa2f7;  /* podcast   */
+  --c2: #9ece6a;  /* music     */
+  --c3: #e0af68;  /* media     */
+  --c4: #bb9af7;  /* merch     */
+  --c5: #7dcfff;  /* events    */
+  --c6: #f7768e;  /* revenue   */
+  --c7: #a1a8b5;  /* operations, finance — the unglamorous ones stay grey */
 }
 :root[data-theme="light"] {
   --alert: #c62828;
   --warn: #8a6100;   /* #facc15 is unreadable on #e8e8e8 */
   --ok: #1b7a3d;
   --muted-3: #5f5f5f; /* #888 gives about 2.9:1 on light; this clears 5:1 */
+
+  /* The same hues, darkened. The dark-theme set is pitched to glow on black and
+     washes out to pastel on #e8e8e8. */
+  --c1: #3b62b8;
+  --c2: #4d7c2a;
+  --c3: #96682a;
+  --c4: #7c52c4;
+  --c5: #1f7fa8;
+  --c6: #c0344f;
+  --c7: #5f6672;
+}
+
+/*
+  The board fits the screen — when the screen is tall enough to fit it.
+
+  Locked to the viewport at any height, a short browser window squeezed the rows
+  until cards were cut through the middle of a word, and the dead space that
+  left in the taller cards read as a layout bug. That is what Jaco was looking
+  at: a task list showing two of nine items with a hole underneath, and the
+  numbers card sliced in half.
+
+  So the lock needs both dimensions. Under 900px of height the board goes back
+  to a normal page that scrolls, which is the honest answer — there is not room,
+  and pretending otherwise is what broke it.
+*/
+@media (min-width: 1280px) and (min-height: 900px) {
+  .board-fit  { height: 100dvh; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+  .board-head { flex-shrink: 0; }
+  .board-main { flex: 1 1 0%; min-height: 0; }
+  .board-grid {
+    height: 100%;
+    min-height: 0;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+}
+
+/*
+  A scrolling column should look like one.
+
+  With the board locked to the viewport, the last card in a column is often cut
+  by the bottom edge. That is honest — there is more below — but a hard slice
+  through a card reads as a broken layout rather than as an invitation to
+  scroll, which is what Jaco was looking at. The fade says "continues" in the
+  way a hard edge cannot.
+
+  The padding underneath is so the final card clears the fade once you reach the
+  bottom, rather than sitting permanently half-dissolved.
+*/
+@media (min-width: 1280px) and (min-height: 900px) {
+  .fade-b {
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent 100%);
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent 100%);
+  }
 }
