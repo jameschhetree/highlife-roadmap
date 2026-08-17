@@ -254,6 +254,13 @@ const QUARTERS: {
   },
 ];
 
+// Launch Sprint O2 KR3 names its seven SOPs rather than taking the first seven
+// of section 18's priority order: lead response, tour, proposal/follow-up,
+// client onboarding, podcast session, file handoff/editing, revision/delivery.
+// Those are numbers 1-6 and 9 — not 1-7. Taking 1-7 quietly swapped
+// "revision/delivery" out for "session execution".
+const SPRINT_SEVEN = [1, 2, 3, 5, 6, 8, 9];
+
 // Section 18. Owners are the document's own suggestions.
 const SOPS: { n: number; title: string; owner: string; with?: string }[] = [
   { n: 1, title: "New lead response + qualification", owner: "Marketing partner" },
@@ -287,11 +294,11 @@ const WEEKS: { week: number; objective: string; deliverable: string }[] = [
 ];
 
 // Section 11 — owned content cadence, as recurring content slots.
-const CONTENT: { title: string; owner: string; kpi: string; notes: string }[] = [
+const CONTENT: { title: string; owner: string; kpi: string; notes: string; pillar?: string; view?: string }[] = [
   { title: "HL Podcast — weekly episode", owner: "Unassigned", kpi: "Cadence completed", notes: "Captured Sunday. Owned media, authority and short-form source. The plan does not name an owner for this — assign one." },
   { title: "Podcast commercials — 2x/month batch", owner: "Marketing partner", kpi: "Leads by source", notes: "Captured Sunday. Demand generation for the podcast revenue engine." },
-  { title: "HL Freestyle — 1x/month", owner: "Unassigned", kpi: "Cadence completed", notes: "Captured Saturday. Music credibility, artist community." },
-  { title: "Monthly event", owner: "Unassigned", kpi: "Revenue + leads", notes: "Every event needs one primary goal: revenue, leads, content or community." },
+  { title: "HL Freestyle — 1x/month", owner: "Unassigned", pillar: "Music", kpi: "Cadence completed", notes: "Captured Saturday. Music credibility, artist community." },
+  { title: "Monthly event", owner: "Unassigned", pillar: "Events", view: "Event", kpi: "Revenue", notes: "Primary goal: revenue. Section 11 requires ONE primary goal plus at least one secondary win — leads, content or community are secondary here." },
 ];
 
 // Section 19 — the risks worth deciding about early, entered as open decisions.
@@ -412,25 +419,37 @@ async function main() {
 
   const sprint = quarterIds["launch-sprint"];
 
+  // Section 17: every item carries the objective it supports. Looked up rather
+  // than hardcoded so the ids stay correct if the seed order changes.
+  const objs = await prisma.objective.findMany({ where: { quarterId: sprint } });
+  const objId = (kind: string) => objs.find((o) => o.kind === kind)?.id ?? null;
+  const OPS = objId("OperatingSystem");
+  const BRAND = objId("BrandFootprint");
+  const REVENUE = objId("RevenueEngine");
+
   await prisma.item.createMany({
     data: [
       ...SOPS.map((s) => ({
         title: s.title, owner: s.owner, view: "SOP" as const,
         pillar: "Operations" as const, quarterId: sprint,
-        priority: s.n <= 7 ? ("Critical" as const) : ("Standard" as const),
+        priority: SPRINT_SEVEN.includes(s.n) ? ("Critical" as const) : ("Standard" as const),
+        objectiveId: OPS,
         sortOrder: s.n,
         // The first seven are a Launch Sprint key result, not a nice-to-have.
         notes: [
-          s.n <= 7 ? "Launch Sprint O2 KR3 — required before Q4." : "Section 18 priority order.",
+          SPRINT_SEVEN.includes(s.n) ? "Launch Sprint O2 KR3 — required before Q4." : "Section 18 priority order.",
           s.with ? `Works with: ${s.with}.` : "",
           "Format: purpose, trigger, owner, inputs, 5-12 steps, quality check, SLA, escalation, version.",
         ].filter(Boolean).join(" "),
         kpi: "Roadmap commitments completed",
       })),
       ...CONTENT.map((c, i) => ({
-        title: c.title, owner: c.owner, view: "ContentCalendar" as const,
-        pillar: "Media" as const, quarterId: sprint,
+        title: c.title, owner: c.owner,
+        view: (c.view ?? "ContentCalendar") as never,
+        pillar: (c.pillar ?? "Media") as never,
+        quarterId: sprint,
         priority: "Standard" as const, sortOrder: i, kpi: c.kpi, notes: c.notes,
+        objectiveId: BRAND,
       })),
       ...DECISIONS.map((d, i) => ({
         title: d.title, owner: d.owner, view: "DecisionLog" as const,
@@ -464,7 +483,7 @@ async function main() {
   await prisma.item.createMany({
     data: THIS_WEEK.map((t, i) => ({
       title: t.title, owner: t.owner, view: "ThisWeek" as const,
-      pillar: t.pillar as never, quarterId: sprint,
+      pillar: t.pillar as never, quarterId: sprint, objectiveId: REVENUE,
       priority: (t.priority ?? "Standard") as never,
       kpi: t.kpi, dueDate: new Date(t.due), sortOrder: i,
       notes: "Week 1 of the 90-day execution plan: install the scoreboard.",
