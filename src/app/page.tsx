@@ -635,6 +635,7 @@ export default function RoadmapPage() {
               <AddItem
                 view={view} quarterId={current?.id ?? null}
                 open={adding} setOpen={setAdding} onDone={load} onError={setError}
+                ownerOptions={ownerOptions}
               />
             )}
           </>
@@ -795,10 +796,11 @@ function Items({
 }
 
 function AddItem({
-  view, quarterId, open, setOpen, onDone, onError,
+  view, quarterId, open, setOpen, onDone, onError, ownerOptions,
 }: {
   view: View; quarterId: string | null; open: boolean;
   setOpen: (b: boolean) => void; onDone: () => void; onError: (s: string) => void;
+  ownerOptions: string[];
 }) {
   const [title, setTitle] = useState("");
   const [owner, setOwner] = useState("");
@@ -825,12 +827,48 @@ function AddItem({
   };
 
   return (
-    <div className="mt-7 grid gap-4">
-      <Field label="Task" value={title} onSave={setTitle} placeholder="Clear verb and outcome" />
-      <Field label="Owner — required" value={owner} onSave={setOwner} placeholder="One name" />
-      <Field label={view === "ThisWeek" ? "Due date — required" : "Due date"} type="date" value={due} onSave={setDue} />
+    <div className="mt-7 grid gap-4 max-w-[560px]">
+      {/* Plain controlled inputs rather than Field.
+          Field only reports its value when it loses focus, which is right for
+          editing something that already exists and wrong for a form you submit:
+          pick a date, press Add while the picker still has focus, and the date
+          never reaches the form. Here every keystroke is the state. */}
+      <label className="block">
+        <span className="block text-[11px] tracking-[0.14em] uppercase text-[var(--muted-3)] mb-2">Task</span>
+        <input
+          value={title} onChange={(e) => setTitle(e.target.value)}
+          placeholder="Clear verb and outcome"
+          className="w-full min-h-[48px] px-3.5 py-3 text-[16px] rounded-[10px] bg-white/[0.04] border border-white/10 text-[var(--text)]"
+        />
+      </label>
+
+      <label className="block">
+        <span className="block text-[11px] tracking-[0.14em] uppercase text-[var(--muted-3)] mb-2">
+          Owner — required
+        </span>
+        <select
+          value={owner} onChange={(e) => setOwner(e.target.value)}
+          className="w-full min-h-[48px] px-3 text-[16px] rounded-[10px] bg-white/[0.04] border border-white/10 text-[var(--text)]"
+        >
+          <option value="">Pick someone</option>
+          {ownerOptions.map((o) => <option key={o} value={o}>{o}</option>)}
+        </select>
+      </label>
+
+      <label className="block">
+        <span className="block text-[11px] tracking-[0.14em] uppercase text-[var(--muted-3)] mb-2">
+          {view === "ThisWeek" ? "Due date — required" : "Due date"}
+        </span>
+        <input
+          type="date" value={due} onChange={(e) => setDue(e.target.value)}
+          className="w-full min-h-[48px] px-3.5 py-3 text-[16px] rounded-[10px] bg-white/[0.04] border border-white/10 text-[var(--text)]"
+        />
+      </label>
+
       <div className="flex gap-3">
-        <Button kind="solid" onClick={submit} disabled={saving}>{saving ? "Saving" : "Add"}</Button>
+        <Button kind="solid" onClick={submit} disabled={saving || !title.trim() || !owner.trim()}>
+          {saving ? "Saving" : "Add"}
+        </Button>
         <Button onClick={() => { setOpen(false); onError(""); }}>Cancel</Button>
       </div>
     </div>
