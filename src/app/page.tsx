@@ -294,7 +294,7 @@ export default function RoadmapPage() {
 
         {current && (
           <>
-            <p className="mt-4 text-[17px] leading-relaxed text-[#a0a0a0]">{current.focus}</p>
+            <p className="mt-4 text-[17px] leading-relaxed text-[var(--muted)]">{current.focus}</p>
             {/* Stacked rows, not a four-across strip. On a phone that strip
                 wrapped mid-label and was the worst of the readability problem. */}
             {/* Two across on a phone rather than four, so nothing shrinks. Each
@@ -331,11 +331,11 @@ export default function RoadmapPage() {
         {/* What the plan says to do today, so nobody has to work out which part
             of a 38-page document applies on a Wednesday. */}
         <Panel className="mt-8 px-5 py-5">
-          <p className="text-[11px] tracking-[0.18em] uppercase text-[#666] mb-2">
+          <p className="text-[11px] tracking-[0.18em] uppercase text-[var(--muted-3)] mb-2">
             {guide.weekday}
           </p>
           <p className="text-[19px] leading-snug mb-2">{guide.headline}</p>
-          <p className="text-[15px] leading-relaxed text-[#888]">{guide.detail}</p>
+          <p className="text-[15px] leading-relaxed text-[var(--muted)]">{guide.detail}</p>
           {guide.goTo && (
             <div className="mt-5">
               <Button arrow onClick={() => setView(guide.goTo as View)}>{guide.goToLabel}</Button>
@@ -349,10 +349,10 @@ export default function RoadmapPage() {
           if (named.length === 0) return null;
           return (
             <Panel className="mt-4 px-5 py-5">
-              <p className="text-[11px] tracking-[0.18em] uppercase text-[#666] mb-1">
+              <p className="text-[11px] tracking-[0.18em] uppercase text-[var(--muted-3)] mb-1">
                 Commitments per owner
               </p>
-              <p className="text-[14px] leading-relaxed text-[#666] mb-4">
+              <p className="text-[14px] leading-relaxed text-[var(--muted-3)] mb-4">
                 The plan gives each owner three to five for the week. Not three to five between you.
               </p>
               <dl className="divide-y divide-white/[0.08]">
@@ -363,8 +363,8 @@ export default function RoadmapPage() {
                     <div key={o} className="flex items-baseline justify-between gap-4 py-3">
                       <dt className="text-[16px]">{o}</dt>
                       <dd className="shrink-0 text-right">
-                        <span className={`text-[20px] tabular-nums ${n > 5 ? "text-[#ff6b6b]" : ""}`}>{n}</span>
-                        {state && <span className="ml-2 text-[14px] text-[#888]">{state}</span>}
+                        <span className={`text-[20px] tabular-nums ${n > 5 ? "text-[var(--alert)]" : ""}`}>{n}</span>
+                        {state && <span className="ml-2 text-[14px] text-[var(--muted)]">{state}</span>}
                       </dd>
                     </div>
                   );
@@ -377,16 +377,16 @@ export default function RoadmapPage() {
         {view === "ThisWeek" && (
           <Panel className="mt-4 px-5 py-5">
             <div className="flex items-baseline justify-between gap-4 mb-1">
-              <p className="text-[11px] tracking-[0.18em] uppercase text-[#666]">
+              <p className="text-[11px] tracking-[0.18em] uppercase text-[var(--muted-3)]">
                 What this week should be about
               </p>
               {focus.generatedAt && !focus.stale && (
-                <span className="shrink-0 text-[12px] text-[#666]">read from the plan</span>
+                <span className="shrink-0 text-[12px] text-[var(--muted-3)]">read from the plan</span>
               )}
             </div>
 
             {focus.focus.length === 0 ? (
-              <p className="text-[15px] leading-relaxed text-[#888] mb-4">
+              <p className="text-[15px] leading-relaxed text-[var(--muted)] mb-4">
                 Nothing worked out yet. This reads your plan against the current state — the quarter's
                 objectives, this week's deliverable, who owns what — and names the three to five things
                 that actually move it.
@@ -394,7 +394,7 @@ export default function RoadmapPage() {
             ) : (
               <>
                 {focus.stale && (
-                  <p className="text-[14px] leading-relaxed text-[#facc15] mb-4">
+                  <p className="text-[14px] leading-relaxed text-[var(--warn)] mb-4">
                     Owners or statuses have changed since this was worked out. Refresh it.
                   </p>
                 )}
@@ -402,13 +402,13 @@ export default function RoadmapPage() {
                   {focus.focus.map((f, i) => (
                     <li key={i}>
                       <p className="text-[17px] leading-snug">
-                        <span className="text-[#666] tabular-nums mr-2">{i + 1}</span>
+                        <span className="text-[var(--muted-3)] tabular-nums mr-2">{i + 1}</span>
                         {f.text}
                       </p>
-                      <p className="mt-1.5 text-[14px] leading-relaxed text-[#888]">{f.why}</p>
-                      <p className="mt-1.5 text-[13px] text-[#666]">
+                      <p className="mt-1.5 text-[14px] leading-relaxed text-[var(--muted)]">{f.why}</p>
+                      <p className="mt-1.5 text-[13px] text-[var(--muted-3)]">
                         {f.owner && (
-                          <span className={f.owner === "Needs an owner" ? "text-[#ff6b6b]" : ""}>{f.owner}</span>
+                          <span className={f.owner === "Needs an owner" ? "text-[var(--alert)]" : ""}>{f.owner}</span>
                         )}
                         {f.section && <> · plan section {f.section}</>}
                       </p>
@@ -435,7 +435,7 @@ export default function RoadmapPage() {
 
         {view === "ThisWeek" && priorities.length > 0 && (
           <Panel soft className="mt-4 px-5 py-5">
-            <p className="text-[11px] tracking-[0.18em] uppercase text-[#666] mb-3">
+            <p className="text-[11px] tracking-[0.18em] uppercase text-[var(--muted-3)] mb-3">
               Housekeeping
             </p>
             <ul className="space-y-3">
@@ -443,7 +443,7 @@ export default function RoadmapPage() {
                 <li key={i}>
                   <button onClick={() => s.goTo && setView(s.goTo as View)} className="text-left w-full min-h-[44px]">
                     <span className="block text-[16px] leading-snug">{s.text}</span>
-                    <span className="block mt-1 text-[13px] leading-relaxed text-[#666]">{s.why}</span>
+                    <span className="block mt-1 text-[13px] leading-relaxed text-[var(--muted-3)]">{s.why}</span>
                   </button>
                 </li>
               ))}
@@ -460,7 +460,7 @@ export default function RoadmapPage() {
             value={who}
             onChange={(e) => setWho(e.target.value)}
             aria-label="Filter by owner"
-            className="min-h-[48px] rounded-full px-5 text-[16px] bg-white/[0.04] border border-white/10 focus:outline-none focus:border-white/40"
+            className="min-h-[48px] rounded-full px-5 text-[16px]"
           >
             {owners.map((o) => <option key={o} value={o}>{o}</option>)}
           </select>
@@ -484,12 +484,12 @@ export default function RoadmapPage() {
                   onClick={() => setView(t.key)}
                   className={`shrink-0 min-h-[46px] px-4 my-1 rounded-full text-[15px] whitespace-nowrap
                     transition-[background-color,color] duration-300 ${
-                    active ? "bg-white text-black" : "text-[#9a9a9a] hover:text-white hover:bg-white/[0.06]"
+                    active ? "bg-[var(--text)] text-[var(--bg)]" : "text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--text)]/[0.06]"
                   }`}
                 >
                   {t.label}
                   {n > 0 && (
-                    <span className={`ml-2 text-[13px] tabular-nums ${active ? "text-black/50" : "text-[#666]"}`}>
+                    <span className={`ml-2 text-[13px] tabular-nums ${active ? "text-[var(--bg)] opacity-60" : "text-[var(--muted-3)]"}`}>
                       {n}
                     </span>
                   )}
@@ -501,9 +501,9 @@ export default function RoadmapPage() {
       </nav>
 
       <main className="max-w-[900px] mx-auto px-5 md:px-10 pt-12 pb-32">
-        <p className="text-[16px] leading-relaxed text-[#888] mb-7">
+        <p className="text-[16px] leading-relaxed text-[var(--muted)] mb-7">
           {TABS.find((t) => t.key === view)?.blurb}
-          {who !== "Everyone" && <span className="text-white"> Showing {who} only.</span>}
+          {who !== "Everyone" && <span className="text-[var(--text)]"> Showing {who} only.</span>}
         </p>
 
         {error && (
@@ -519,11 +519,11 @@ export default function RoadmapPage() {
 
         {view === "ThisWeek" && currentWeek && (
           <Panel className="mb-8 px-5 py-5">
-            <p className="text-[11px] tracking-[0.18em] uppercase text-[#666] mb-2">
+            <p className="text-[11px] tracking-[0.18em] uppercase text-[var(--muted-3)] mb-2">
               Week {currentWeek.week} of 12
             </p>
             <p className="text-[19px] leading-snug mb-2">{currentWeek.objective}</p>
-            <p className="text-[15px] leading-relaxed text-[#888]">{currentWeek.deliverable}</p>
+            <p className="text-[15px] leading-relaxed text-[var(--muted)]">{currentWeek.deliverable}</p>
             {!items.some((i) => i.weekNumber === currentWeek.week) && (
               <div className="mt-5">
                 <Button kind="solid" arrow onClick={() => call(`/api/weeks/${currentWeek.id}/load`, "POST")}>
@@ -539,7 +539,7 @@ export default function RoadmapPage() {
             {view === "RevenueProject" && (
               <div className="mb-8">
                 <Eyebrow>Who owns what</Eyebrow>
-                <p className="text-[16px] leading-relaxed text-[#888]">
+                <p className="text-[16px] leading-relaxed text-[var(--muted)]">
                   You asked whether this is a responsibility tab. For the five rows below, yes — they are
                   the channels from section 07, each permanently owned and judged on its own numbers.
                   They are not tasks and they never get ticked off. Anything you add here is different:
@@ -569,7 +569,7 @@ export default function RoadmapPage() {
         {view === "ThisWeek" && weeks.length > 0 && (
           <Reveal className="mt-20 block">
             <Eyebrow>The first 12 weeks</Eyebrow>
-            <p className="text-[16px] leading-relaxed text-[#888] mb-6">
+            <p className="text-[16px] leading-relaxed text-[var(--muted)] mb-6">
               One objective per week, straight from the plan. Pull a week in and it becomes editable
               commitments above — assign the owners, change the wording, add what the plan did not think of.
             </p>
@@ -584,17 +584,17 @@ export default function RoadmapPage() {
                       onClick={() => call(`/api/weeks/${w.id}`, "PATCH", { done: !w.done })}
                     />
                     <div className="min-w-0 flex-1">
-                      <p className={`text-[17px] leading-snug ${w.done ? "text-[#666] line-through" : ""}`}>
-                        <span className="text-[#666] tabular-nums mr-2">{w.week}</span>
+                      <p className={`text-[17px] leading-snug ${w.done ? "text-[var(--muted-3)] line-through" : ""}`}>
+                        <span className="text-[var(--muted-3)] tabular-nums mr-2">{w.week}</span>
                         {w.objective}
                         {isNow && (
-                          <span className="ml-3 text-[12px] tracking-[0.14em] uppercase text-white">This week</span>
+                          <span className="ml-3 text-[12px] tracking-[0.14em] uppercase text-[var(--text)]">This week</span>
                         )}
                       </p>
-                      <p className="mt-1.5 text-[15px] leading-relaxed text-[#888]">{w.deliverable}</p>
+                      <p className="mt-1.5 text-[15px] leading-relaxed text-[var(--muted)]">{w.deliverable}</p>
                       <div className="mt-3">
                         {loaded ? (
-                          <span className="text-[14px] text-[#666]">Already pulled into This week</span>
+                          <span className="text-[14px] text-[var(--muted-3)]">Already pulled into This week</span>
                         ) : (
                           <Button onClick={() => call(`/api/weeks/${w.id}/load`, "POST")}>
                             Pull week {w.week} in
@@ -621,9 +621,9 @@ function Tile({
   return (
     <button onClick={onClick} className="text-left">
       <Panel className="h-full px-4 py-4 hover:bg-white/[0.09] transition-colors">
-        <p className="text-[11px] tracking-[0.16em] uppercase text-[#666] mb-2">{label}</p>
-        <p className={`text-[28px] leading-none tabular-nums ${warn ? "text-[#ff6b6b]" : ""}`}>{value}</p>
-        {sub && <p className="mt-2 text-[13px] leading-snug text-[#888]">{sub}</p>}
+        <p className="text-[11px] tracking-[0.16em] uppercase text-[var(--muted-3)] mb-2">{label}</p>
+        <p className={`text-[28px] leading-none tabular-nums ${warn ? "text-[var(--alert)]" : ""}`}>{value}</p>
+        {sub && <p className="mt-2 text-[13px] leading-snug text-[var(--muted)]">{sub}</p>}
       </Panel>
     </button>
   );
@@ -632,8 +632,8 @@ function Tile({
 function Row({ k, v, big, warn }: { k: string; v: string; big?: boolean; warn?: boolean }) {
   return (
     <div className="flex items-baseline justify-between gap-4 py-3.5">
-      <dt className="text-[15px] text-[#888]">{k}</dt>
-      <dd className={`shrink-0 tabular-nums ${big ? "text-[22px]" : "text-[16px]"} ${warn ? "text-[#ff6b6b]" : ""}`}>
+      <dt className="text-[15px] text-[var(--muted)]">{k}</dt>
+      <dd className={`shrink-0 tabular-nums ${big ? "text-[22px]" : "text-[16px]"} ${warn ? "text-[var(--alert)]" : ""}`}>
         {v}
       </dd>
     </div>
@@ -659,18 +659,18 @@ function Items({
               })}
             />
             <button onClick={() => setOpen(open === it.id ? null : it.id)} className="min-w-0 flex-1 text-left">
-              <span className={`block text-[18px] leading-snug ${it.status === "Done" ? "text-[#666] line-through" : ""}`}>
+              <span className={`block text-[18px] leading-snug ${it.status === "Done" ? "text-[var(--muted-3)] line-through" : ""}`}>
                 {it.title}
               </span>
-              <span className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[15px] text-[#888]">
-                <span className={it.owner === "Unassigned" ? "text-[#ff6b6b]" : "text-white"}>
+              <span className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[15px] text-[var(--muted)]">
+                <span className={it.owner === "Unassigned" ? "text-[var(--alert)]" : "text-[var(--text)]"}>
                   {it.owner === "Unassigned" ? "Needs an owner" : it.owner}
                 </span>
-                <span className="text-[#444]">·</span>
+                <span className="text-[var(--muted-3)]">·</span>
                 <span>{it.pillar}</span>
-                {it.priority === "Critical" && (<><span className="text-[#444]">·</span><span className="text-white font-medium">Critical</span></>)}
-                {it.dueDate && (<><span className="text-[#444]">·</span><span className="tabular-nums">{fmtDate(it.dueDate)}</span></>)}
-                {it.status === "Blocked" && (<><span className="text-[#444]">·</span><span className="text-[#ff6b6b]">Blocked</span></>)}
+                {it.priority === "Critical" && (<><span className="text-[var(--muted-3)]">·</span><span className="text-[var(--text)] font-medium">Critical</span></>)}
+                {it.dueDate && (<><span className="text-[var(--muted-3)]">·</span><span className="tabular-nums">{fmtDate(it.dueDate)}</span></>)}
+                {it.status === "Blocked" && (<><span className="text-[var(--muted-3)]">·</span><span className="text-[var(--alert)]">Blocked</span></>)}
               </span>
             </button>
           </div>
@@ -687,7 +687,7 @@ function Items({
               <Field label="Notes / evidence" multiline value={it.notes} onSave={(v) => call(`/api/items/${it.id}`, "PATCH", { notes: v })} className="sm:col-span-2" />
               <button
                 onClick={() => call(`/api/items/${it.id}`, "DELETE")}
-                className="justify-self-start min-h-[44px] text-[15px] text-[#888]"
+                className="justify-self-start min-h-[44px] text-[15px] text-[var(--muted)]"
               >
                 Delete
               </button>
@@ -712,7 +712,7 @@ function AddItem({
 
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)} className="mt-7 min-h-[48px] text-[16px] text-[#888]">
+      <button onClick={() => setOpen(true)} className="mt-7 min-h-[48px] text-[16px] text-[var(--muted)]">
         + Add item
       </button>
     );
@@ -762,13 +762,13 @@ function Okrs({
               <span className="flex items-baseline justify-between gap-3">
                 <span className="text-[20px]">
                   {q.name}
-                  {q.isCurrent && <span className="ml-3 text-[12px] tracking-[0.14em] uppercase text-[#888]">Current</span>}
+                  {q.isCurrent && <span className="ml-3 text-[12px] tracking-[0.14em] uppercase text-[var(--muted)]">Current</span>}
                 </span>
-                <span className="shrink-0 text-[15px] text-[#888]">{open ? "−" : "+"}</span>
+                <span className="shrink-0 text-[15px] text-[var(--muted)]">{open ? "−" : "+"}</span>
               </span>
-              <span className="block mt-1.5 text-[15px] text-[#888]">{q.dates}</span>
+              <span className="block mt-1.5 text-[15px] text-[var(--muted)]">{q.dates}</span>
               {/* Spelled out. "$52K cum." meant nothing at a glance. */}
-              <span className="block mt-1 text-[15px] text-[#888]">
+              <span className="block mt-1 text-[15px] text-[var(--muted)]">
                 {q.revenueTarget} this period · {q.cumulative} cumulative
                 {avg && <> · scored {avg}</>}
               </span>
@@ -783,12 +783,12 @@ function Okrs({
                     <div className="space-y-6">
                       {o.keyResults.map((k) => (
                         <div key={k.id}>
-                          <p className="text-[16px] leading-relaxed text-[#a0a0a0]">
-                            <span className="text-[#666] tabular-nums mr-2">{k.label}</span>
+                          <p className="text-[16px] leading-relaxed text-[var(--muted)]">
+                            <span className="text-[var(--muted-3)] tabular-nums mr-2">{k.label}</span>
                             {k.text}
                           </p>
                           <div className="mt-2.5 flex items-center gap-3">
-                            <span className="text-[13px] tracking-[0.1em] uppercase text-[#666]">Score</span>
+                            <span className="text-[13px] tracking-[0.1em] uppercase text-[var(--muted-3)]">Score</span>
                             <input
                               type="number" min="0" max="1" step="0.1"
                               defaultValue={k.score ?? ""} placeholder="—"
@@ -841,7 +841,7 @@ function Money({
     <>
       <section>
         <Eyebrow>Target against actual</Eyebrow>
-        <p className="text-[16px] leading-relaxed text-[#888] mb-6">
+        <p className="text-[16px] leading-relaxed text-[var(--muted)] mb-6">
           $250K cumulative is the floor; manage toward $275K so one weak month does not break the goal.
           Actuals are the cash collected on your Monday cards — enter it once, it appears here.
         </p>
@@ -851,21 +851,21 @@ function Money({
               <div className="flex items-baseline justify-between gap-4">
                 <span className="text-[16px]">{m.label}</span>
                 <span className="shrink-0 text-right tabular-nums">
-                  <span className={`text-[18px] ${m.got == null ? "text-[#666]" : ""}`}>
+                  <span className={`text-[18px] ${m.got == null ? "text-[var(--muted-3)]" : ""}`}>
                     {m.got == null ? "—" : money(m.got)}
                   </span>
-                  <span className="text-[16px] text-[#666]"> / {money(m.target)}</span>
+                  <span className="text-[16px] text-[var(--muted-3)]"> / {money(m.target)}</span>
                 </span>
               </div>
               <div className="mt-1.5 flex items-baseline justify-between gap-4 text-[14px]">
-                <span className="text-[#666] tabular-nums">
+                <span className="text-[var(--muted-3)] tabular-nums">
                   {money(m.cumTarget)} cumulative target
                   {m.cumActual != null && <> · {money(m.cumActual)} so far</>}
                 </span>
                 {m.pct != null && (
                   <span
                     className={`shrink-0 tabular-nums ${
-                      m.pct >= 100 ? "text-[#4ade80]" : m.pct >= 90 ? "text-[#facc15]" : "text-[#ff6b6b]"
+                      m.pct >= 100 ? "text-[var(--ok)]" : m.pct >= 90 ? "text-[var(--warn)]" : "text-[var(--alert)]"
                     }`}
                   >
                     {Math.round(m.pct)}% of target
@@ -876,7 +876,7 @@ function Money({
           ))}
         </div>
         {!anyActual && (
-          <p className="mt-5 text-[15px] leading-relaxed text-[#666]">
+          <p className="mt-5 text-[15px] leading-relaxed text-[var(--muted-3)]">
             No actuals yet. Log a Monday meeting and fill in cash collected, and these fill in
             themselves.
           </p>
@@ -885,7 +885,7 @@ function Money({
 
       <section className="mt-16">
         <Eyebrow>Monday thresholds</Eyebrow>
-        <p className="text-[16px] leading-relaxed text-[#888] mb-6">
+        <p className="text-[16px] leading-relaxed text-[var(--muted)] mb-6">
           Recalibrate after 60–90 days of real data. Using the same definition every week matters more
           than the exact number.
         </p>
@@ -893,7 +893,7 @@ function Money({
           {thresholds.map((t) => (
             <div key={t.id} className="py-4">
               <p className="text-[17px]">{t.metric}</p>
-              <p className="mt-1.5 text-[15px] text-[#888] tabular-nums">
+              <p className="mt-1.5 text-[15px] text-[var(--muted)] tabular-nums">
                 Green {t.green} · Yellow {t.yellow} · Red {t.red}
               </p>
             </div>
@@ -903,7 +903,7 @@ function Money({
 
       <section className="mt-16">
         <Eyebrow>True after 90 days</Eyebrow>
-        <p className="text-[16px] leading-relaxed text-[#888] mb-6">
+        <p className="text-[16px] leading-relaxed text-[var(--muted)] mb-6">
           The test of whether the first quarter actually worked.
         </p>
         <div className="divide-y divide-white/10 border-t border-white/10">
@@ -913,7 +913,7 @@ function Money({
                 done={t.passed} label={t.text}
                 onClick={() => call(`/api/tests/${t.id}`, "PATCH", { passed: !t.passed })}
               />
-              <p className={`text-[17px] leading-relaxed ${t.passed ? "text-[#666] line-through" : ""}`}>
+              <p className={`text-[17px] leading-relaxed ${t.passed ? "text-[var(--muted-3)] line-through" : ""}`}>
                 {t.text}
               </p>
             </div>
@@ -941,7 +941,7 @@ function Cards({
     <div className="mb-7">
       <Eyebrow>Cards</Eyebrow>
       {known === 0 && (
-        <p className="text-[16px] leading-relaxed text-[#888] mb-4">
+        <p className="text-[16px] leading-relaxed text-[var(--muted)] mb-4">
           Fill in the scorecard below and the cards appear. Nothing is graded until the number exists —
           a blank box is not a red.
         </p>
@@ -954,14 +954,14 @@ function Cards({
             <div key={t.id} className="py-3.5 flex items-center gap-4">
               <span
                 className={`shrink-0 w-[64px] text-center text-[12px] tracking-[0.1em] uppercase rounded-md py-1.5 ${
-                  g.card ? CARD_STYLE[g.card] : "text-[#666] border border-white/10"
+                  g.card ? CARD_STYLE[g.card] : "text-[var(--muted-3)] border border-white/10"
                 }`}
               >
                 {g.card ?? "—"}
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block text-[16px]">{t.metric}</span>
-                <span className="block text-[14px] text-[#888] tabular-nums">
+                <span className="block text-[14px] text-[var(--muted)] tabular-nums">
                   {g.display} · green {t.green}, yellow {t.yellow}, red {t.red}
                 </span>
               </span>
@@ -991,14 +991,14 @@ function MeetingsView({
             <button onClick={() => setOpenKind(open ? null : def.kind)} className="w-full text-left">
               <span className="flex items-baseline justify-between gap-3">
                 <span className="text-[20px]">{def.label}</span>
-                <span className="shrink-0 text-[15px] text-[#888]">{open ? "−" : "+"}</span>
+                <span className="shrink-0 text-[15px] text-[var(--muted)]">{open ? "−" : "+"}</span>
               </span>
-              <span className="block mt-1.5 text-[15px] text-[#888]">
+              <span className="block mt-1.5 text-[15px] text-[var(--muted)]">
                 {def.when}
               </span>
               {/* Dates, so it is obvious which occurrence is being logged and
                   what happens next Monday. */}
-              <span className="block mt-1 text-[15px] text-[#666] tabular-nums">
+              <span className="block mt-1 text-[15px] text-[var(--muted-3)] tabular-nums">
                 {logged.length > 0
                   ? <>Last logged {pretty(logged[0].date.slice(0, 10))} · </>
                   : <>Nothing logged yet · </>}
@@ -1014,9 +1014,9 @@ function MeetingsView({
                     <li key={a.item}>
                       <p className="text-[17px] leading-snug">
                         {a.item}
-                        {a.mins && <span className="ml-2 text-[14px] text-[#666]">{a.mins}</span>}
+                        {a.mins && <span className="ml-2 text-[14px] text-[var(--muted-3)]">{a.mins}</span>}
                       </p>
-                      <p className="mt-1 text-[15px] leading-relaxed text-[#888]">{a.detail}</p>
+                      <p className="mt-1 text-[15px] leading-relaxed text-[var(--muted)]">{a.detail}</p>
                     </li>
                   ))}
                 </ul>
@@ -1029,7 +1029,7 @@ function MeetingsView({
 
                 <div className="mt-8 space-y-9">
                   {logged.length === 0 && (
-                    <p className="text-[16px] text-[#888]">
+                    <p className="text-[16px] text-[var(--muted)]">
                       Nothing recorded yet.
                       {def.scorecard
                         ? " Log one and the scorecard appears."
@@ -1044,14 +1044,14 @@ function MeetingsView({
                             weekday: "short", month: "short", day: "numeric",
                           })}
                           {def.scorecard && (
-                            <span className="block mt-1 text-[14px] text-[#888]">
+                            <span className="block mt-1 text-[14px] text-[var(--muted)]">
                               Numbers for {coveringWeek(m.date)}
                             </span>
                           )}
                         </p>
                         <button
                           onClick={() => call(`/api/meetings/${m.id}`, "DELETE")}
-                          className="min-h-[44px] text-[15px] text-[#888]"
+                          className="min-h-[44px] text-[15px] text-[var(--muted)]"
                         >
                           Remove
                         </button>
@@ -1131,12 +1131,12 @@ function Systems({
           <div className="min-w-0">
             <p className="text-[17px] leading-snug">
               {t.signal}
-              {t.firing && <span className="ml-3 text-[13px] tracking-[0.12em] uppercase text-[#ff6b6b]">Firing</span>}
+              {t.firing && <span className="ml-3 text-[13px] tracking-[0.12em] uppercase text-[var(--alert)]">Firing</span>}
             </p>
-            <p className="mt-1.5 text-[15px] leading-relaxed text-[#888]">{t.condition}</p>
+            <p className="mt-1.5 text-[15px] leading-relaxed text-[var(--muted)]">{t.condition}</p>
             {/* The action only matters once the condition is met, so it is shown
                 as the consequence rather than as another line of description. */}
-            <p className={`mt-2 text-[15px] leading-relaxed ${t.firing ? "text-white" : "text-[#666]"}`}>
+            <p className={`mt-2 text-[15px] leading-relaxed ${t.firing ? "text-[var(--text)]" : "text-[var(--muted-3)]"}`}>
               → {t.action}
             </p>
           </div>
@@ -1149,7 +1149,7 @@ function Systems({
     <div className="space-y-16">
       <Reveal>
         <Eyebrow>Capacity triggers</Eyebrow>
-        <p className="text-[16px] leading-relaxed text-[#888] mb-5">
+        <p className="text-[16px] leading-relaxed text-[var(--muted)] mb-5">
           Tick one when the condition is true. The plan&apos;s discipline is that the action follows the
           trigger, not the mood of the room.
         </p>
@@ -1158,7 +1158,7 @@ function Systems({
 
       <Reveal>
         <Eyebrow>Hiring triggers</Eyebrow>
-        <p className="text-[16px] leading-relaxed text-[#888] mb-5">
+        <p className="text-[16px] leading-relaxed text-[var(--muted)] mb-5">
           Grow leverage before hierarchy. Each of these names the structure to try first.
         </p>
         <TriggerList list={hiring} />
@@ -1166,7 +1166,7 @@ function Systems({
 
       <Reveal>
         <Eyebrow>The offer ladder</Eyebrow>
-        <p className="text-[16px] leading-relaxed text-[#888] mb-5">
+        <p className="text-[16px] leading-relaxed text-[var(--muted)] mb-5">
           Prices stay provisional until the cost study exists — real editor hours, production labour,
           revisions, commission and payment fees. Tick one once it has been costed.
         </p>
@@ -1180,24 +1180,24 @@ function Systems({
               <div className="min-w-0 flex-1">
                 <p className="flex flex-wrap items-baseline gap-x-3 text-[17px]">
                   <span>{o.name}</span>
-                  <span className="tabular-nums text-[#a0a0a0]">{o.price}</span>
+                  <span className="tabular-nums text-[var(--muted)]">{o.price}</span>
                   {!o.costStudied && (
-                    <span className="text-[13px] tracking-[0.1em] uppercase text-[#666]">not costed</span>
+                    <span className="text-[13px] tracking-[0.1em] uppercase text-[var(--muted-3)]">not costed</span>
                   )}
                 </p>
-                <p className="mt-1.5 text-[15px] text-[#888]">{o.designedFor}</p>
-                <p className="mt-2 text-[15px] leading-relaxed text-[#666]">{o.scope}</p>
+                <p className="mt-1.5 text-[15px] text-[var(--muted)]">{o.designedFor}</p>
+                <p className="mt-2 text-[15px] leading-relaxed text-[var(--muted-3)]">{o.scope}</p>
               </div>
             </div>
           ))}
         </div>
 
-        <p className="mt-8 mb-4 text-[13px] tracking-[0.14em] uppercase text-[#666]">Public rates</p>
+        <p className="mt-8 mb-4 text-[13px] tracking-[0.14em] uppercase text-[var(--muted-3)]">Public rates</p>
         <div className="divide-y divide-white/10 border-t border-white/10">
           {rates.map((o) => (
             <div key={o.id} className="py-4 flex items-baseline justify-between gap-4">
               <span className="text-[16px]">{o.name}</span>
-              <span className="shrink-0 text-[15px] tabular-nums text-[#a0a0a0]">{o.price}</span>
+              <span className="shrink-0 text-[15px] tabular-nums text-[var(--muted)]">{o.price}</span>
             </div>
           ))}
         </div>
@@ -1205,7 +1205,7 @@ function Systems({
 
       <Reveal>
         <Eyebrow>Risk register</Eyebrow>
-        <p className="text-[16px] leading-relaxed text-[#888] mb-5">
+        <p className="text-[16px] leading-relaxed text-[var(--muted)] mb-5">
           Tick a risk once its mitigation is actually in place, not once it is written down.
         </p>
         <div className="divide-y divide-white/10 border-t border-white/10">
@@ -1217,8 +1217,8 @@ function Systems({
               />
               <div className="min-w-0 flex-1">
                 <p className="text-[17px] leading-snug">{r.risk}</p>
-                <p className="mt-1.5 text-[15px] leading-relaxed text-[#888]">Shows up as: {r.showsUpAs}</p>
-                <p className="mt-2 text-[15px] leading-relaxed text-[#666]">{r.mitigation}</p>
+                <p className="mt-1.5 text-[15px] leading-relaxed text-[var(--muted)]">Shows up as: {r.showsUpAs}</p>
+                <p className="mt-2 text-[15px] leading-relaxed text-[var(--muted-3)]">{r.mitigation}</p>
                 <div className="mt-3 max-w-[240px]">
                   <Field
                     label="Owner" value={r.owner}
@@ -1271,7 +1271,7 @@ function MonthlyRollup({
   return (
     <>
       <Eyebrow>Reviewing {label}</Eyebrow>
-      <p className="text-[15px] leading-relaxed text-[#888] mb-5">
+      <p className="text-[15px] leading-relaxed text-[var(--muted)] mb-5">
         {r.weeks === 0
           ? "No Monday cards for that month yet, so there is nothing to total. Log the weekly meetings and this fills itself."
           : `Totalled from ${r.weeks} Monday ${r.weeks === 1 ? "card" : "cards"}. Nothing to re-enter.`}
@@ -1282,7 +1282,7 @@ function MonthlyRollup({
           {TOTALS.map(([k, label2, isMoney]) => (
             <div key={k} className="py-3 flex items-baseline justify-between gap-4">
               <span className="text-[16px]">{label2}</span>
-              <span className={`shrink-0 text-[18px] tabular-nums ${r.totals[k] == null ? "text-[#666]" : ""}`}>
+              <span className={`shrink-0 text-[18px] tabular-nums ${r.totals[k] == null ? "text-[var(--muted-3)]" : ""}`}>
                 {r.totals[k] == null ? "—" : isMoney ? `$${r.totals[k]!.toLocaleString()}` : r.totals[k]}
               </span>
             </div>
@@ -1290,9 +1290,9 @@ function MonthlyRollup({
           {AVERAGES.map(([k, label2, unit]) => (
             <div key={k} className="py-3 flex items-baseline justify-between gap-4">
               <span className="text-[16px]">
-                {label2} <span className="text-[14px] text-[#666]">avg</span>
+                {label2} <span className="text-[14px] text-[var(--muted-3)]">avg</span>
               </span>
-              <span className={`shrink-0 text-[18px] tabular-nums ${r.averages[k] == null ? "text-[#666]" : ""}`}>
+              <span className={`shrink-0 text-[18px] tabular-nums ${r.averages[k] == null ? "text-[var(--muted-3)]" : ""}`}>
                 {r.averages[k] == null ? "—" : `${unit === "$" ? "$" : ""}${r.averages[k]}${unit === "$" ? "" : unit}`}
               </span>
             </div>

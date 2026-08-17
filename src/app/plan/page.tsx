@@ -269,7 +269,7 @@ export default function PlanPage() {
                       return next ? (
                         <button
                           onClick={() => open(next.id)}
-                          className="min-h-[48px] px-6 rounded-full bezel text-[16px] text-[#888]"
+                          className="min-h-[48px] px-6 rounded-full bezel text-[16px] text-[var(--muted)]"
                         >
                           Next: {next.title} →
                         </button>
@@ -287,7 +287,7 @@ export default function PlanPage() {
                   </button>
                   <button
                     onClick={() => { setAsText(true); setEditing(true); setDraft(active.body); }}
-                    style={BLUR(20)} className="min-h-[48px] px-6 rounded-full bezel text-[16px] text-[#888]"
+                    style={BLUR(20)} className="min-h-[48px] px-6 rounded-full bezel text-[16px] text-[var(--muted)]"
                   >
                     Edit
                   </button>
@@ -298,7 +298,7 @@ export default function PlanPage() {
                       <button
                         onClick={() => open(next.id)}
                         style={BLUR(20)}
-                        className="min-h-[48px] px-6 rounded-full bezel text-[16px] text-[#888]"
+                        className="min-h-[48px] px-6 rounded-full bezel text-[16px] text-[var(--muted)]"
                       >
                         Next: {next.title} →
                       </button>

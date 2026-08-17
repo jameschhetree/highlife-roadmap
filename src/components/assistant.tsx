@@ -69,14 +69,14 @@ export function Assistant({ onChanged }: { onChanged: () => void }) {
       <div style={BLUR(24, true)} className="rounded-2xl pill-nav !rounded-2xl overflow-hidden">
         <div className="flex items-center justify-between px-5 h-[56px] border-b border-white/10">
           <span className="text-[16px]">Ask the roadmap</span>
-          <button onClick={() => setOpen(false)} className="min-h-[44px] px-2 text-[15px] text-[#888]">
+          <button onClick={() => setOpen(false)} className="min-h-[44px] px-2 text-[15px] text-[var(--muted)]">
             Close
           </button>
         </div>
 
         <div className="max-h-[46vh] overflow-y-auto px-5 py-4 space-y-4">
           {msgs.length === 0 && (
-            <div className="text-[15px] leading-relaxed text-[#888]">
+            <div className="text-[15px] leading-relaxed text-[var(--muted)]">
               <p className="mb-3">Try:</p>
               <p>What does JoJo owe this week?</p>
               <p>What is blocked?</p>
@@ -88,14 +88,14 @@ export function Assistant({ onChanged }: { onChanged: () => void }) {
             <div key={i} className={m.role === "user" ? "text-right" : ""}>
               <span
                 className={`inline-block max-w-[92%] text-left px-4 py-2.5 rounded-2xl text-[15px] leading-relaxed whitespace-pre-wrap ${
-                  m.role === "user" ? "bg-white text-black" : "bg-white/[0.06] text-[#d4d4d4]"
+                  m.role === "user" ? "bg-white text-black" : "bg-white/[0.06] text-[var(--text)]"
                 }`}
               >
                 {m.content}
               </span>
             </div>
           ))}
-          {busy && <p className="text-[15px] text-[#666]">Thinking…</p>}
+          {busy && <p className="text-[15px] text-[var(--muted-3)]">Thinking…</p>}
           <div ref={endRef} />
         </div>
 

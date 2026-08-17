@@ -19,16 +19,16 @@ export const BLUR = (px = 20, saturate = false) => ({
 });
 
 export function Eyebrow({ children }: { children: React.ReactNode }) {
-  return <p className="text-[11px] tracking-[0.18em] uppercase text-[#666] mb-2">{children}</p>;
+  return <p className="text-[11px] tracking-[0.18em] uppercase text-[var(--muted-3)] mb-2">{children}</p>;
 }
 
 export function Empty({ children }: { children: React.ReactNode }) {
-  return <p className="py-12 text-[16px] leading-relaxed text-[#888]">{children}</p>;
+  return <p className="py-12 text-[16px] leading-relaxed text-[var(--muted)]">{children}</p>;
 }
 
 const INPUT =
   "w-full px-3.5 py-3 text-[16px] leading-relaxed rounded-[10px] " +
-  "bg-white/[0.04] border border-white/10 text-white placeholder:text-[#666] " +
+  "bg-white/[0.04] border border-white/10 text-[var(--text)] placeholder:text-[var(--muted-3)] " +
   "focus:outline-none focus:border-white/40 focus:bg-white/[0.07]";
 
 /**
@@ -63,8 +63,8 @@ export function Field({
     <label className={`block ${className}`}>
       {label && (
         <span className="flex items-baseline justify-between gap-2 mb-2">
-          <span className="text-[11px] tracking-[0.14em] uppercase text-[#666]">{label}</span>
-          {saved && <span className="text-[11px] tracking-[0.1em] uppercase text-[#4ade80]">saved</span>}
+          <span className="text-[11px] tracking-[0.14em] uppercase text-[var(--muted-3)]">{label}</span>
+          {saved && <span className="text-[11px] tracking-[0.1em] uppercase text-[var(--ok)]">saved</span>}
         </span>
       )}
       {multiline ? (
@@ -108,7 +108,7 @@ export function Choice({
   return (
     <label className="block">
       {label && (
-        <span className="block text-[11px] tracking-[0.14em] uppercase text-[#666] mb-2">{label}</span>
+        <span className="block text-[11px] tracking-[0.14em] uppercase text-[var(--muted-3)] mb-2">{label}</span>
       )}
       <select
         value={value}
@@ -139,7 +139,7 @@ export function Button({
       style={solid ? undefined : BLUR(20)}
       className={`group inline-flex items-center gap-3 min-h-[48px] ${arrow ? "pl-6 pr-2" : "px-6"} rounded-full text-[16px]
         transition-[background-color,border-color,transform] duration-300 active:scale-[0.98] disabled:opacity-40
-        ${solid ? "bg-white text-black border border-white hover:bg-white/90" : "bezel text-white hover:bg-white/[0.09]"}
+        ${solid ? "bg-[var(--text)] text-[var(--bg)] border border-[var(--text)]" : "bezel text-[var(--text)]"}
         ${className}`}
     >
       <span>{children}</span>
@@ -162,7 +162,7 @@ export function Button({
 export function Tag({ children }: { children: React.ReactNode }) {
   return (
     <span style={BLUR(20)} className="inline-block px-3 py-1 mb-4 rounded-full text-[11px] tracking-[0.16em] uppercase
-      text-[#9a9a9a] bezel">
+      text-[var(--muted)] bezel">
       {children}
     </span>
   );
@@ -194,7 +194,7 @@ export function Tick({
     <button onClick={onClick} aria-label={label} className="shrink-0 -m-[15px] p-[15px] flex items-start">
       <span
         className={`block mt-[4px] w-[18px] h-[18px] rounded-full transition-colors ${
-          done ? "bg-white" : "border border-white/25"
+          done ? "bg-[var(--text)]" : "border border-[var(--text)]/30"
         }`}
       />
     </button>
