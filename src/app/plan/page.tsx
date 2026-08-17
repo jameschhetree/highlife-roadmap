@@ -20,55 +20,26 @@ import Link from "next/link";
 import { isAdminAuthed } from "@/lib/admin-auth";
 import { BLUR } from "@/components/ui";
 
-type Section = { id: string; number: number; title: string; body: string; pages: string };
+type Section = { id: string; number: number; title: string; body: string; pages: string; pageImages: string[] };
 
-/** Renders the plan's plain text as blocks: headings, bullets, key-value rows. */
+/** The plan's text, reflowed. Kept for search and editing, not for looking at. */
 function Body({ text }: { text: string }) {
-  const lines = text.split("\n");
-  const out: React.ReactNode[] = [];
-  let bullets: string[] = [];
-
-  const flush = (k: number) => {
-    if (!bullets.length) return;
-    out.push(
-      <ul key={`u${k}`} className="my-4 space-y-2.5">
-        {bullets.map((b, i) => (
-          <li key={i} className="flex gap-3 text-[17px] leading-[1.7] text-[#d4d4d4]">
-            <span className="shrink-0 text-[#555] mt-[2px]">•</span>
-            <span>{b}</span>
-          </li>
-        ))}
-      </ul>
-    );
-    bullets = [];
-  };
-
-  lines.forEach((raw, i) => {
-    const line = raw.trim();
-    if (!line) { flush(i); return; }
-
-    if (/^[•·]\s?/.test(line) || /^-\s/.test(line)) {
-      bullets.push(line.replace(/^[•·-]\s?/, ""));
-      return;
-    }
-    flush(i);
-
-    // A short line with no terminal punctuation is a heading in this document.
-    const isHeading = line.length < 62 && !/[.:,;]$/.test(line) && !/^\d/.test(line);
-    if (isHeading) {
-      out.push(
-        <h3 key={i} className="mt-9 mb-3 text-[15px] tracking-[0.12em] uppercase text-[#888]">
-          {line}
-        </h3>
-      );
-      return;
-    }
-    out.push(
-      <p key={i} className="my-3.5 text-[17px] leading-[1.75] text-[#d4d4d4]">{line}</p>
-    );
-  });
-  flush(lines.length);
-  return <>{out}</>;
+  const blocks = text.split("\n").filter((l) => l.trim());
+  return (
+    <>
+      {blocks.map((line, i) => {
+        const bullet = /^[•·]\s?|^-\s/.test(line);
+        return (
+          <p
+            key={i}
+            className={`text-[17px] leading-[1.75] text-[#d4d4d4] ${bullet ? "pl-5 -indent-5 my-2" : "my-4"}`}
+          >
+            {bullet ? <><span className="text-[#555]">— </span>{line.replace(/^[•·-]\s?/, "")}</> : line}
+          </p>
+        );
+      })}
+    </>
+  );
 }
 
 export default function PlanPage() {
@@ -77,6 +48,7 @@ export default function PlanPage() {
   const [sections, setSections] = useState<Section[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const [asText, setAsText] = useState(false);
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const [query, setQuery] = useState("");
@@ -107,6 +79,7 @@ export default function PlanPage() {
   const open = (id: string) => {
     setActiveId(id);
     setEditing(false);
+    setAsText(false);
     setNavOpen(false);
     readingRef.current?.scrollTo({ top: 0 });
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -194,6 +167,20 @@ export default function PlanPage() {
                 {active.title}
               </h1>
 
+              {!editing && !asText && active.pageImages.length > 0 && (
+                <div className="space-y-5">
+                  {active.pageImages.map((src) => (
+                    // The document as designed. Rounded and bordered so it reads
+                    // as a page rather than as a screenshot dropped on the page.
+                    <img
+                      key={src} src={src} alt={`${active.title}, page`}
+                      loading="lazy"
+                      className="w-full rounded-xl border border-white/10 bg-white"
+                    />
+                  ))}
+                </div>
+              )}
+
               {editing ? (
                 <>
                   <textarea
@@ -217,10 +204,16 @@ export default function PlanPage() {
                     </button>
                   </div>
                 </>
-              ) : (
+              ) : asText ? (
                 <>
                   <Body text={active.body} />
                   <div className="mt-10 pt-6 border-t border-white/10 flex flex-wrap gap-3">
+                    <button
+                      onClick={() => setAsText(false)}
+                      style={BLUR(20)} className="min-h-[48px] px-6 rounded-full bezel text-[16px]"
+                    >
+                      Back to the page
+                    </button>
                     <button
                       onClick={() => { setEditing(true); setDraft(active.body); }}
                       style={BLUR(20)} className="min-h-[48px] px-6 rounded-full bezel text-[16px]"
@@ -241,6 +234,34 @@ export default function PlanPage() {
                     })()}
                   </div>
                 </>
+              ) : (
+                <div className="mt-8 pt-6 border-t border-white/10 flex flex-wrap gap-3">
+                  <button
+                    onClick={() => setAsText(true)}
+                    style={BLUR(20)} className="min-h-[48px] px-6 rounded-full bezel text-[16px]"
+                  >
+                    Read as text
+                  </button>
+                  <button
+                    onClick={() => { setAsText(true); setEditing(true); setDraft(active.body); }}
+                    style={BLUR(20)} className="min-h-[48px] px-6 rounded-full bezel text-[16px] text-[#888]"
+                  >
+                    Edit
+                  </button>
+                  {(() => {
+                    const i = sections.findIndex((x) => x.id === active.id);
+                    const next = sections[i + 1];
+                    return next ? (
+                      <button
+                        onClick={() => open(next.id)}
+                        style={BLUR(20)}
+                        className="min-h-[48px] px-6 rounded-full bezel text-[16px] text-[#888]"
+                      >
+                        Next: {next.title} →
+                      </button>
+                    ) : null;
+                  })()}
+                </div>
               )}
             </article>
           )}

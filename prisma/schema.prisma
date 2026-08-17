@@ -233,6 +233,11 @@ model PlanSection {
   title   String
   body    String
   pages   String @default("")
+  /// The rendered pages, so the plan can be read as it was designed — charts,
+  /// tables and all. PDF text extraction loses the layout that carries half the
+  /// meaning in this document; the text below the image stays for search and
+  /// editing.
+  pageImages String[] @default([])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

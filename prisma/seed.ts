@@ -572,7 +572,7 @@ async function main() {
   // The plan document itself, section by section, editable in the app.
   const sections = JSON.parse(
     require("fs").readFileSync(__dirname + "/plan-sections.json", "utf8")
-  ) as { number: number; title: string; body: string; pages: string }[];
+  ) as { number: number; title: string; body: string; pages: string; pageImages: string[] }[];
   await prisma.planSection.createMany({ data: sections });
   console.log(`  ${sections.length} plan sections`);
 
