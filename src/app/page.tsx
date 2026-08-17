@@ -39,6 +39,7 @@ type Item = {
   sop?: Sop | null;
 };
 type Sop = {
+  docUrl: string;
   purpose: string; trigger: string; inputs: string; steps: string;
   qualityCheck: string; sla: string; escalation: string; version: string;
   published: boolean;
@@ -1493,14 +1494,20 @@ function SopEditor({
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Sop>(
     item.sop ?? {
-      purpose: "", trigger: "", inputs: "", steps: "",
+      docUrl: "", purpose: "", trigger: "", inputs: "", steps: "",
       qualityCheck: "", sla: "", escalation: "", version: "v1", published: false,
     }
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const written = item.sop && (item.sop.purpose || item.sop.steps);
+  const linked = item.sop?.docUrl?.trim();
+  const written = item.sop && (item.sop.docUrl || item.sop.purpose || item.sop.steps);
+
+  // Google serves an embeddable copy at /preview. Anything else, just link it.
+  const previewUrl = linked
+    ? linked.replace(/\/(edit|view)(\?[^#]*)?(#.*)?$/, "/preview")
+    : null;
 
   const save = async (published?: boolean) => {
     setSaving(true); setError("");
@@ -1527,6 +1534,27 @@ function SopEditor({
                 {item.sop!.published ? " · published" : " · draft"}
               </span>
             </div>
+            {linked && (
+              <div className="mb-6">
+                <div className="rounded-xl overflow-hidden border border-white/10 bg-white">
+                  {/* The doc as it looks in Docs. Needs link-sharing on, or
+                      Google shows a sign-in wall inside the frame. */}
+                  <iframe
+                    src={previewUrl!}
+                    title={`${item.title} in Google Docs`}
+                    className="w-full h-[520px]"
+                    loading="lazy"
+                  />
+                </div>
+                <a
+                  href={linked} target="_blank" rel="noopener noreferrer"
+                  className="inline-block mt-3 min-h-[44px] leading-[44px] text-[15px] text-[var(--muted)] hover:text-[var(--text)]"
+                >
+                  Open in Google Docs →
+                </a>
+              </div>
+            )}
+
             {SOP_FIELDS.filter(([k]) => (item.sop![k] as string)?.trim()).map(([k, label]) => (
               <div key={k} className="mb-5">
                 <p className="text-[11px] tracking-[0.14em] uppercase text-[var(--muted-3)] mb-1.5">{label}</p>
@@ -1555,11 +1583,11 @@ function SopEditor({
           <>
             <Eyebrow>The procedure</Eyebrow>
             <p className="text-[15px] leading-relaxed text-[var(--muted)] mb-4">
-              Not written yet. The plan asks for purpose, trigger, owner, inputs, five to twelve steps,
-              a quality check, an SLA, escalation and a version — and says to build it while doing the
-              task rather than spending a week on a perfect manual.
+              Not written yet. Either paste the link to the Google Doc you already have, or write it
+              here in the plan's format — purpose, trigger, inputs, five to twelve steps, quality
+              check, SLA, escalation, version.
             </p>
-            <Button onClick={() => setOpen(true)}>Write it</Button>
+            <Button onClick={() => setOpen(true)}>Add it</Button>
           </>
         )}
         {error && <p className="mt-3 text-[15px] text-[var(--alert)]">{error}</p>}
@@ -1569,7 +1597,24 @@ function SopEditor({
 
   return (
     <div className="mt-7 pt-6 border-t border-white/10">
-      <Eyebrow>Writing the procedure</Eyebrow>
+      <Eyebrow>The procedure</Eyebrow>
+      <label className="block mb-6">
+        <span className="block text-[11px] tracking-[0.14em] uppercase text-[var(--muted-3)] mb-1">
+          Google Doc
+        </span>
+        <span className="block text-[13px] text-[var(--muted-3)] mb-2">
+          Paste the link and that becomes the SOP. The fields below stay optional — no point keeping
+          the same procedure in two places. Set the doc to anyone-with-the-link or it will ask JoJo to
+          sign in.
+        </span>
+        <input
+          value={draft.docUrl}
+          onChange={(e) => setDraft({ ...draft, docUrl: e.target.value })}
+          placeholder="https://docs.google.com/document/d/…"
+          className="w-full min-h-[48px] px-3.5 py-3 text-[16px] rounded-[10px] bg-white/[0.04] border border-white/10 text-[var(--text)]"
+        />
+      </label>
+
       <div className="grid gap-5">
         {SOP_FIELDS.map(([k, label, hint]) => (
           <label key={k} className="block">

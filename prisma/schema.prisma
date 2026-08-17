@@ -374,6 +374,14 @@ model SopDoc {
   itemId String @unique
   item   Item   @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
+  /// A Google Doc holding the real procedure.
+  ///
+  /// HighLife already has SOPs written up properly in Docs and they look better
+  /// than nine boxes ever will. Retyping them here would produce a worse copy
+  /// that immediately drifts from the original, so the link is the SOP and the
+  /// fields below are optional.
+  docUrl       String @default("")
+
   purpose      String @default("")
   trigger      String @default("")
   inputs       String @default("")
