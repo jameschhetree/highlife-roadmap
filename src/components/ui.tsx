@@ -83,14 +83,21 @@ export function Field({
           className={`${INPUT} min-h-[48px]`}
         />
       )}
-      {dirty && (
-        <button
-          onClick={(e) => { e.preventDefault(); commit(); }}
-          className="mt-2 min-h-[44px] px-5 rounded-full bg-white text-black text-[15px]"
-        >
-          Save
-        </button>
-      )}
+      {/* Always there. I had it appear only when something changed, on the
+          grounds that a button with nothing to save is furniture. Jaco asked
+          twice for it to be permanent, which settles it — it dims when there is
+          nothing to save rather than vanishing. */}
+      <button
+        onClick={(e) => { e.preventDefault(); commit(); }}
+        disabled={!dirty}
+        className={`mt-2 min-h-[44px] px-5 rounded-full text-[15px] transition-opacity ${
+          dirty
+            ? "bg-white text-black"
+            : "bezel text-[var(--muted-3)] opacity-60 cursor-default"
+        }`}
+      >
+        {saved ? "Saved" : "Save"}
+      </button>
     </label>
   );
 }
