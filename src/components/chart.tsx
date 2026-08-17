@@ -249,17 +249,17 @@ export function Funnel({ stages }: {
   const tones = ["var(--c5)", "var(--c1)", "var(--c2)"];
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2.5">
       {stages.map((s, i) => (
         <div key={s.label}>
-          <div className="flex items-baseline justify-between gap-3 mb-1.5">
-            <span className="text-[14px] text-[var(--muted)]">{s.label}</span>
-            <span className="shrink-0 text-[15px] tabular-nums">
+          <div className="flex items-baseline justify-between gap-2 mb-1.5">
+            {/* Nowrap: in a 200px column "Tours showed" broke over two lines and
+                pushed the card past its cell. */}
+            <span className="text-[13px] text-[var(--muted)] truncate whitespace-nowrap">{s.label}</span>
+            <span className="shrink-0 text-[14px] tabular-nums whitespace-nowrap">
               {s.value == null ? <span className="text-[var(--muted-3)]">—</span> : s.value}
               {s.rate != null && (
-                <span className="ml-2 text-[13px] text-[var(--muted-3)]">
-                  {Math.round(s.rate)}% {s.of}
-                </span>
+                <span className="ml-1.5 text-[12px] text-[var(--muted-3)]">{Math.round(s.rate)}%</span>
               )}
             </span>
           </div>

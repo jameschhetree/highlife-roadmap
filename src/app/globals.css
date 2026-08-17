@@ -328,15 +328,42 @@ select option { background: #141414; color: #ffffff; }
   to a normal page that scrolls, which is the honest answer — there is not room,
   and pretending otherwise is what broke it.
 */
-@media (min-width: 1280px) and (min-height: 900px) {
+@media (min-width: 1080px) and (min-height: 620px) {
   .board-fit  { height: 100dvh; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
   .board-head { flex-shrink: 0; }
   .board-main { flex: 1 1 0%; min-height: 0; }
   .board-grid {
     height: 100%;
     min-height: 0;
-    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    /* A definite first row, not auto and not fr.
+       Auto let the tallest card in row one decide the split, and on a 696px
+       screen it took so much that the task list was left seven pixels tall —
+       nine rows in the DOM, none of them visible. Fractional units did not fix
+       it either: the measured split stayed content-driven. A percentage of a
+       grid whose height is definite is unambiguous, and it is the only version
+       of this I have seen actually hold at 696px. */
+    grid-template-rows: 42% minmax(0, 1fr);
   }
+
+  /* The columns belong to the same query as the lock. Held in Tailwind's xl
+     they started at 1280px while the lock started here, so a 1216px-wide window
+     — the one Jaco actually works in — got a stacked page pretending to be a
+     board, and it ran to 2300px. */
+  .board-a { grid-column: span 5; min-height: 0; }
+  .board-b { grid-column: span 4; min-height: 0; }
+  .board-c { grid-column: span 3; min-height: 0; }
+  .board-e { grid-column: span 4; min-height: 0; }
+  .board-f { grid-column: span 3; min-height: 0; }
+  .board-scroll { overflow-y: auto; padding-bottom: 2.5rem; }
+
+  /* Short screens are the normal case, not the exception: 700px of viewport is
+     what is left of a laptop after the menu bar, the tabs and the bookmarks. So
+     the board tightens rather than overflowing. */
+  .board-tight      { padding: 0.75rem 1rem; }
+  .board-tight-head { margin-bottom: 0.5rem; }
+  /* Read-once sentences cost a row of the grid every time you look at the board. */
+  .board-hide       { display: none; }
 }
 
 /*
@@ -351,7 +378,7 @@ select option { background: #141414; color: #ffffff; }
   The padding underneath is so the final card clears the fade once you reach the
   bottom, rather than sitting permanently half-dissolved.
 */
-@media (min-width: 1280px) and (min-height: 900px) {
+@media (min-width: 1080px) and (min-height: 620px) {
   .fade-b {
     -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent 100%);
     mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent 100%);

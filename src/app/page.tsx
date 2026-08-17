@@ -431,7 +431,7 @@ export default function RoadmapPage() {
       </aside>
 
       <header className={`px-5 md:px-10 ${dashboard
-        ? "w-full max-w-[1800px] mx-auto pt-5 pb-4 board-head"
+        ? "w-full max-w-[1800px] mx-auto pt-4 pb-3 board-head"
         : "max-w-[1100px] mx-auto pt-6 lg:pt-10 pb-6"}`}>
         <button
           onClick={() => setNavOpen(true)}
@@ -444,7 +444,7 @@ export default function RoadmapPage() {
         {/* The page names itself. "Roadmap" on every tab told you nothing about
             where you were. */}
         <div className="flex items-baseline justify-between gap-4 flex-wrap">
-          <h1 className={`${dashboard ? "text-[26px] md:text-[30px]" : "text-[30px] md:text-[36px]"} leading-[1.05] font-semibold tracking-[-0.025em]`}>
+          <h1 className={`${dashboard ? "text-[22px] md:text-[24px]" : "text-[30px] md:text-[36px]"} leading-[1.05] font-semibold tracking-[-0.025em]`}>
             {TABS.find((t) => t.key === view)?.label}
           </h1>
           {current && view === "ThisWeek" && (
@@ -453,12 +453,12 @@ export default function RoadmapPage() {
             </p>
           )}
         </div>
-        <p className={`mt-2 text-[16px] leading-relaxed text-[var(--muted)] max-w-[70ch] ${dashboard ? "xl:hidden" : ""}`}>
+        <p className={`mt-2 text-[16px] leading-relaxed text-[var(--muted)] max-w-[70ch] ${dashboard ? "board-hide" : ""}`}>
           {TABS.find((t) => t.key === view)?.blurb}
           {who !== "Everyone" && <span className="text-[var(--text)]"> Showing {who} only.</span>}
         </p>
         {dashboard && who !== "Everyone" && (
-          <p className="mt-1 hidden xl:block text-[15px] text-[var(--muted)]">Showing {who} only.</p>
+          <p className="mt-1 text-[14px] text-[var(--muted)]">Showing {who} only.</p>
         )}
 
         {error && (
@@ -503,12 +503,12 @@ export default function RoadmapPage() {
           does.
         */}
         {view === "ThisWeek" && (
-          <div className="grid gap-4 board-grid xl:grid-cols-12">
-            <div className="min-w-0 xl:col-span-5 xl:min-h-0">
+          <div className="grid gap-3 board-grid">
+            <div className="min-w-0 board-a">
               <PaceCard board={board} onOpen={setView} />
             </div>
 
-            <div className="min-w-0 xl:col-span-4 xl:min-h-0 grid grid-cols-2 gap-3 content-start">
+            <div className="min-w-0 board-b grid grid-cols-2 gap-3 content-start">
               <Tile label="Collected" value={collectedTotal == null ? "—" : dollars(collectedTotal)}
                 sub={current ? `of ${current.cumulative} by Sep 30` : ""} onClick={() => setView("Money")} />
               <Tile label="Open" value={String(openThisWeek)}
@@ -532,15 +532,15 @@ export default function RoadmapPage() {
               )}
             </div>
 
-            <div className="min-w-0 xl:col-span-3 xl:min-h-0">
+            <div className="min-w-0 board-c">
               <ToursCard board={board} onOpen={setView} />
             </div>
 
             {/* The tasks, as a card like everything else. They were a bare list
                 running down the page under a heading, which is why they did not
                 look like part of the same product. */}
-            <div className="min-w-0 xl:col-span-5 xl:min-h-0">
-              <Panel className="h-full min-h-0 flex flex-col px-5 py-4">
+            <div className="min-w-0 board-a">
+              <Panel className="h-full min-h-0 flex flex-col board-tight">
                 <div className="flex items-start justify-between gap-4 mb-3">
                   <div className="min-w-0">
                     <p className="text-[15px] leading-tight">
@@ -601,7 +601,7 @@ export default function RoadmapPage() {
                   )}
                 </div>
 
-                <div className="pt-3 mt-1 border-t border-white/10">
+                <div className="pt-1 border-t border-white/10">
                   <AddItem
                     view={view} quarterId={current?.id ?? null}
                     open={adding} setOpen={setAdding} onDone={load} onError={setError}
@@ -611,7 +611,7 @@ export default function RoadmapPage() {
               </Panel>
             </div>
 
-            <div className="min-w-0 xl:col-span-4 xl:min-h-0 flex flex-col gap-3 xl:overflow-y-auto no-scrollbar fade-b xl:pb-10">
+            <div className="min-w-0 board-e flex flex-col gap-3 board-scroll no-scrollbar fade-b">
               <MeetingWidgets meetings={meetings} guide={guide} onOpen={setView} />
 
               {currentWeek && (
@@ -637,35 +637,29 @@ export default function RoadmapPage() {
                     editable commitments in the list — assign the owners, change the wording, add what
                     the plan did not think of.
                   </p>
-                  <div className="divide-y divide-white/10 border-t border-white/10">
+                  <div className="max-h-[260px] overflow-y-auto no-scrollbar divide-y divide-white/10 border-t border-white/10">
                     {weeks.map((w) => {
                       const loaded = items.some((i) => i.weekNumber === w.week);
                       const isNow = currentWeek?.week === w.week;
                       return (
-                        <div key={w.id} className="py-4 flex gap-4">
-                          <Tick
-                            done={w.done} label={`Week ${w.week}`}
-                            onClick={() => call(`/api/weeks/${w.id}`, "PATCH", { done: !w.done })}
-                          />
-                          <div className="min-w-0 flex-1">
-                            <p className={`text-[16px] leading-snug ${w.done ? "text-[var(--muted-3)] line-through" : ""}`}>
-                              <span className="text-[var(--muted-3)] tabular-nums mr-2">{w.week}</span>
-                              {w.objective}
-                              {isNow && (
-                                <span className="ml-3 text-[12px] tracking-[0.14em] uppercase text-[var(--text)]">This week</span>
-                              )}
-                            </p>
-                            <p className="mt-1.5 text-[14px] leading-relaxed text-[var(--muted)]">{w.deliverable}</p>
-                            <div className="mt-3">
-                              {loaded ? (
-                                <span className="text-[14px] text-[var(--muted-3)]">Already pulled in</span>
-                              ) : (
-                                <Button onClick={() => call(`/api/weeks/${w.id}/load`, "POST")}>
-                                  Pull week {w.week} in
-                                </Button>
-                              )}
-                            </div>
-                          </div>
+                        <div key={w.id} className="py-2 flex items-baseline gap-3">
+                          <span className="shrink-0 text-[13px] tabular-nums text-[var(--muted-3)] w-5">{w.week}</span>
+                          <span className={`min-w-0 flex-1 text-[14px] leading-snug ${w.done ? "text-[var(--muted-3)] line-through" : ""}`}>
+                            {w.objective}
+                            {isNow && (
+                              <span className="ml-2 text-[11px] tracking-[0.14em] uppercase text-[var(--text)]">now</span>
+                            )}
+                          </span>
+                          {loaded ? (
+                            <span className="shrink-0 text-[12px] text-[var(--muted-3)]">in</span>
+                          ) : (
+                            <button
+                              onClick={() => call(`/api/weeks/${w.id}/load`, "POST")}
+                              className="shrink-0 text-[12px] text-[var(--muted)] hover:text-[var(--text)] min-h-[32px] px-1"
+                            >
+                              pull in
+                            </button>
+                          )}
                         </div>
                       );
                     })}
@@ -674,13 +668,13 @@ export default function RoadmapPage() {
               )}
             </div>
 
-            <div className="min-w-0 xl:col-span-3 xl:min-h-0 flex flex-col gap-3 xl:overflow-y-auto no-scrollbar fade-b xl:pb-10">
+            <div className="min-w-0 board-f flex flex-col gap-3 board-scroll no-scrollbar fade-b">
               {(() => {
                 const open = items.filter((i) => i.view === "ThisWeek" && i.status !== "Done");
                 const named = [...new Set(open.map((i) => i.owner))].filter((o) => o !== "Unassigned");
                 if (named.length === 0) return null;
                 return (
-                  <Panel className="px-5 py-4 shrink-0">
+                  <Panel className="board-tight shrink-0">
                     <CardHead title="Per owner" sub="Three to five each, not between you"
                       value={String(named.length)} />
                     {/* A div, not a dl: the rows are buttons now, and a button
@@ -789,10 +783,10 @@ function Tile({
 }: { label: string; value: string; sub?: string; warn?: boolean; onClick: () => void }) {
   return (
     <button onClick={onClick} className="text-left">
-      <Panel className="h-full px-4 py-4 hover:bg-white/[0.09] transition-colors">
-        <p className="text-[11px] tracking-[0.16em] uppercase text-[var(--muted-3)] mb-2">{label}</p>
-        <p className={`text-[28px] leading-none tabular-nums ${warn ? "text-[var(--alert)]" : ""}`}>{value}</p>
-        {sub && <p className="mt-2 text-[13px] leading-snug text-[var(--muted)]">{sub}</p>}
+      <Panel className="h-full board-tight hover:bg-white/[0.09] transition-colors">
+        <p className="text-[11px] tracking-[0.16em] uppercase text-[var(--muted-3)] mb-1.5">{label}</p>
+        <p className={`text-[24px] leading-none tabular-nums ${warn ? "text-[var(--alert)]" : ""}`}>{value}</p>
+        {sub && <p className="mt-1.5 text-[12px] leading-snug text-[var(--muted)]">{sub}</p>}
       </Panel>
     </button>
   );
@@ -823,7 +817,7 @@ function NumbersCard({
 
   if (!monday) {
     return (
-      <Panel className="px-5 py-4 shrink-0">
+      <Panel className="board-tight shrink-0">
         <CardHead title="This week's numbers" sub="No Monday card yet" value="—" />
         <Button onClick={() => onOpen("Meetings")}>Go to meetings</Button>
       </Panel>
@@ -892,7 +886,7 @@ function MeetingWidgets({
   const today = localToday();
 
   return (
-    <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1 shrink-0">
+    <div className="grid gap-3 grid-cols-1 shrink-0">
       {MEETING_WIDGETS.map((w) => {
         const due = occurrenceToLog(w.kind, today);
         const next = nextOccurrence(w.kind, today);
@@ -911,7 +905,7 @@ function MeetingWidgets({
             onClick={() => onOpen("Meetings")}
             className="text-left"
           >
-            <Panel className="h-full px-4 py-3.5 hover:bg-white/[0.06] transition-colors">
+            <Panel className="h-full board-tight hover:bg-white/[0.06] transition-colors">
               <div className="flex items-baseline justify-between gap-3">
                 <span className="flex items-baseline gap-2 min-w-0">
                   <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: w.tone }} />
@@ -936,7 +930,7 @@ function MeetingWidgets({
               </p>
 
               {isToday && guide.detail && (
-                <p className="mt-2.5 text-[13px] leading-relaxed text-[var(--muted)]">
+                <p className="mt-2 text-[13px] leading-snug text-[var(--muted)] line-clamp-3">
                   {guide.detail}
                 </p>
               )}
@@ -984,7 +978,7 @@ function PillarCard({ items, onOpen }: { items: Item[]; onOpen: (v: View) => voi
   const share = Math.round((podcast / open.length) * 100);
 
   return (
-    <Panel className="px-5 py-4 shrink-0">
+    <Panel className="board-tight shrink-0">
       <CardHead
         title="Open work"
         sub={`${rows.length} pillar${rows.length === 1 ? "" : "s"}`}
@@ -1118,7 +1112,7 @@ function PaceCard({ board, onOpen }: { board: Board; onOpen: (v: View) => void }
   const { p, month, points, nowMark } = board;
 
   return (
-    <Panel className="h-full min-h-0 flex flex-col px-5 py-4">
+    <Panel className="h-full min-h-0 flex flex-col board-tight overflow-hidden">
       {p && month ? (
         <>
           <CardHead
@@ -1135,7 +1129,7 @@ function PaceCard({ board, onOpen }: { board: Board; onOpen: (v: View) => void }
             tone={Math.abs(p.delta) < 1 ? undefined : p.delta > 0 ? "ok" : "alert"}
           />
 
-          <p className="text-[15px] leading-relaxed text-[var(--muted)] tabular-nums mb-3">
+          <p className="text-[13px] leading-snug text-[var(--muted)] tabular-nums mb-2.5">
             {dollars(p.collected)} in, {dollars(p.expected)} due by tonight, {dollars(month.target)} for the month.
           </p>
 
@@ -1151,7 +1145,7 @@ function PaceCard({ board, onOpen }: { board: Board; onOpen: (v: View) => void }
       )}
 
       <div className="mt-4 min-h-0 flex-1 flex items-end text-[var(--text)]">
-        <Curve points={points} now={nowMark} height={168} />
+        <Curve points={points} now={nowMark} height={132} />
       </div>
 
       <div className="mt-2 flex items-center gap-5 text-[13px] text-[var(--muted-3)]">
@@ -1177,7 +1171,7 @@ function ToursCard({ board, onOpen }: { board: Board; onOpen: (v: View) => void 
 
   if (!hasFunnel) {
     return (
-      <Panel className="h-full min-h-0 px-5 py-4">
+      <Panel className="h-full min-h-0 board-tight overflow-hidden">
         <CardHead title="Tours" sub="Nothing to draw yet" value="—" />
         <p className="text-[15px] leading-relaxed text-[var(--muted)] mb-4">
           Leads and tours go on the Monday card. The funnel appears the moment
@@ -1193,10 +1187,11 @@ function ToursCard({ board, onOpen }: { board: Board; onOpen: (v: View) => void 
   const rate = b != null && s != null && b > 0 ? (s / b) * 100 : null;
 
   return (
-    <Panel className="h-full min-h-0 flex flex-col px-5 py-4">
+    <Panel className="h-full min-h-0 flex flex-col board-tight overflow-hidden">
       <CardHead title="Tours" sub="Last card"
         value={rate == null ? "—" : `${Math.round(rate)}%`}
         tone={rate == null ? undefined : rate >= 70 ? "ok" : rate >= 60 ? "warn" : "alert"} />
+      <div className="min-h-0 flex-1 overflow-y-auto no-scrollbar">
       <Funnel stages={stages!} />
       <p className="mt-3 text-[13px] leading-relaxed text-[var(--muted-3)]">
         {rate == null
@@ -1205,9 +1200,10 @@ function ToursCard({ board, onOpen }: { board: Board; onOpen: (v: View) => void 
             ? `${Math.round(rate)}% showed. Green on your threshold.`
             : `${b! - s!} booked tour${b! - s! === 1 ? "" : "s"} did not turn up. Green is 70% showing.`}
       </p>
+      </div>
       <button
         onClick={() => onOpen("Meetings")}
-        className="mt-auto pt-3 text-left text-[14px] text-[var(--muted)] hover:text-[var(--text)] min-h-[40px]"
+        className="shrink-0 pt-2 text-left text-[13px] text-[var(--muted)] hover:text-[var(--text)] min-h-[36px]"
       >
         Open the Monday card →
       </button>
@@ -1229,13 +1225,13 @@ function CardHead({ title, sub, value, tone }: {
     tone === "ok" ? "text-[var(--ok)]" : tone === "warn" ? "text-[var(--warn)]"
       : tone === "alert" ? "text-[var(--alert)]" : "";
   return (
-    <div className="flex items-start justify-between gap-4 mb-3">
+    <div className="flex items-start justify-between gap-4 mb-2.5 board-tight-head">
       <div className="min-w-0">
-        <p className="text-[15px] leading-tight truncate">{title}</p>
-        {sub && <p className="mt-0.5 text-[13px] text-[var(--muted-3)] truncate">{sub}</p>}
+        <p className="text-[14px] leading-tight truncate">{title}</p>
+        {sub && <p className="mt-0.5 text-[12px] text-[var(--muted-3)] truncate">{sub}</p>}
       </div>
       {value && (
-        <p className={`shrink-0 text-[26px] leading-none tabular-nums tracking-[-0.02em] ${colour}`}>{value}</p>
+        <p className={`shrink-0 text-[22px] leading-none tabular-nums tracking-[-0.02em] ${colour}`}>{value}</p>
       )}
     </div>
   );
@@ -1425,7 +1421,7 @@ function AddItem({
 
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)} className="mt-7 min-h-[48px] text-[16px] text-[var(--muted)]">
+      <button onClick={() => setOpen(true)} className="mt-2 min-h-[44px] text-[15px] text-[var(--muted)] hover:text-[var(--text)]">
         + Add item
       </button>
     );
