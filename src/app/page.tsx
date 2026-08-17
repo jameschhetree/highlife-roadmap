@@ -72,7 +72,8 @@ const MEETINGS: { kind: string; label: string; when: string; agenda: string[]; s
   {
     kind: "MondayBusiness", label: "Monday business", when: "Mondays, 10:00 AM · 60–75 min", scorecard: true,
     agenda: [
-      "Scoreboard — 10 min", "Sales funnel — 15 min", "Operations — 10 min",
+      "Scoreboard — 10 min · the week that just ended, not the week ahead",
+      "Sales funnel — 15 min", "Operations — 10 min",
       "People — 5 min", "Money — 10 min", "Roadmap and SOPs — 10 min",
       "Commit: owner and due date for the 3–5 biggest things — 10 min",
     ],
@@ -132,6 +133,19 @@ const money = (n: number) => `$${Math.round(n / 1000)}K`;
 const fmtDate = (d: string | null) =>
   d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "";
 const today = () => new Date().toISOString().slice(0, 10);
+
+/**
+ * The seven days a Monday scorecard reports on: the week that just ended.
+ * Monday's meeting is a recap, so cash collected on 17 August means the money
+ * that came in between the 10th and the 16th.
+ */
+function coveringWeek(meetingDate: string): string {
+  const end = new Date(Date.parse(meetingDate) - 86400000);
+  const start = new Date(end.getTime() - 6 * 86400000);
+  const f = (d: Date) =>
+    d.toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
+  return `${f(start)} – ${f(end)}`;
+}
 
 export default function RoadmapPage() {
   const router = useRouter();
@@ -800,6 +814,11 @@ function MeetingsView({
                           {new Date(m.date).toLocaleDateString("en-US", {
                             weekday: "short", month: "short", day: "numeric",
                           })}
+                          {def.scorecard && (
+                            <span className="block mt-1 text-[14px] text-[#888]">
+                              Numbers for {coveringWeek(m.date)}
+                            </span>
+                          )}
                         </p>
                         <button
                           onClick={() => call(`/api/meetings/${m.id}`, "DELETE")}
