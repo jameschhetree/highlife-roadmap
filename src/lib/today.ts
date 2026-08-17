@@ -22,7 +22,7 @@ const GUIDES: Record<number, DayGuide> = {
     weekday: "Monday",
     headline: "Business meeting, 10:00 AM",
     detail:
-      "Fill in the scorecard first — cash collected, podcast revenue and MRR, music, leads, tours booked and showed, room hours, turnaround. The cards grade themselves against your thresholds. Then leave with three to five commitments, each with one owner and a date.",
+      "Fill in the scorecard first — cash collected, podcast revenue and MRR, music, leads, tours booked and showed, room hours, turnaround. The cards grade themselves against your thresholds. Then each owner leaves with no more than three to five critical commitments — not three to five between you. Every one needs a name and a date.",
     goTo: "Meetings",
     goToLabel: "Open the Monday scorecard",
     meetingKind: "MondayBusiness",

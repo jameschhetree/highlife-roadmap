@@ -75,7 +75,7 @@ const MEETINGS: { kind: string; label: string; when: string; agenda: string[]; s
       "Scoreboard — 10 min · the week that just ended, not the week ahead",
       "Sales funnel — 15 min", "Operations — 10 min",
       "People — 5 min", "Money — 10 min", "Roadmap and SOPs — 10 min",
-      "Commit: owner and due date for the 3–5 biggest things — 10 min",
+      "Commit — 10 min · 3–5 critical commitments each, with a name and a date",
     ],
   },
   {
@@ -288,6 +288,37 @@ export default function RoadmapPage() {
           )}
         </Panel>
 
+        {view === "ThisWeek" && (() => {
+          const open = items.filter((i) => i.view === "ThisWeek" && i.status !== "Done");
+          const named = [...new Set(open.map((i) => i.owner))].filter((o) => o !== "Unassigned");
+          if (named.length === 0) return null;
+          return (
+            <Panel className="mt-4 px-5 py-5">
+              <p className="text-[11px] tracking-[0.18em] uppercase text-[#666] mb-1">
+                Commitments per owner
+              </p>
+              <p className="text-[14px] leading-relaxed text-[#666] mb-4">
+                The plan gives each owner three to five for the week. Not three to five between you.
+              </p>
+              <dl className="divide-y divide-white/[0.08]">
+                {named.map((o) => {
+                  const n = open.filter((i) => i.owner === o).length;
+                  const state = n > 5 ? "too many" : n < 3 ? "light" : null;
+                  return (
+                    <div key={o} className="flex items-baseline justify-between gap-4 py-3">
+                      <dt className="text-[16px]">{o}</dt>
+                      <dd className="shrink-0 text-right">
+                        <span className={`text-[20px] tabular-nums ${n > 5 ? "text-[#ff6b6b]" : ""}`}>{n}</span>
+                        {state && <span className="ml-2 text-[14px] text-[#888]">{state}</span>}
+                      </dd>
+                    </div>
+                  );
+                })}
+              </dl>
+            </Panel>
+          );
+        })()}
+
         {priorities.length > 0 && (
           <Panel className="mt-4 px-5 py-5">
             <p className="text-[11px] tracking-[0.18em] uppercase text-[#666] mb-3">
@@ -332,7 +363,7 @@ export default function RoadmapPage() {
       <nav className="px-3 md:px-8">
         <div style={BLUR(24, true)} className="sticky top-3 z-30 w-fit max-w-full mx-auto pill-nav px-2">
           <div className="flex gap-1 overflow-x-auto no-scrollbar">
-            {TABS.map((t) => {
+            {TABS.filter((t) => t.key !== "Blocked" || blocked > 0).map((t) => {
               const n = t.key === "Blocked" ? blocked
                 : t.key === "Systems" ? systems.triggers.filter((x) => x.firing).length
                 : ["Money", "Meetings", "QuarterlyOKR"].includes(t.key) ? 0
