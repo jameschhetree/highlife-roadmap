@@ -422,6 +422,42 @@ const RISKS: [string, string, string][] = [
   ["Expansion too early", "A second room or major gear purchase drains cash", "Utilization trigger and a business case before capital spend."],
 ];
 
+// Section 07's channel strategy. The Revenue tab was empty, which made it a
+// mystery rather than a tool — these are the five channels the plan names, with
+// the owner and the scoreboard metric it assigns to each.
+const CHANNELS: { title: string; owner: string; kpi: string; notes: string }[] = [
+  {
+    title: "Paid ads",
+    owner: "Marketing partner",
+    kpi: "Spend, CPL, CAC, revenue by campaign",
+    notes: "Weekly: creative testing, landing page optimization, retargeting, budget control.",
+  },
+  {
+    title: "AI outbound",
+    owner: "Marketing partner",
+    kpi: "Contacts, positive replies, booked tours, show rate",
+    notes: "Weekly: target lists, personalized outreach, reply handling, booking. Interns support.",
+  },
+  {
+    title: "Referrals",
+    owner: "Jaco",
+    kpi: "Introductions, referral sales, partner revenue",
+    notes: "Ask after successful deliveries. Partner with agencies, consultants and communities. Client success supports.",
+  },
+  {
+    title: "Organic proof",
+    owner: "Unassigned",
+    kpi: "Inbound leads and assisted conversions",
+    notes: "HL Podcast, client clips, testimonials, behind-the-scenes and event content. The plan assigns this to the brand team without naming a person.",
+  },
+  {
+    title: "Events as acquisition",
+    owner: "Unassigned",
+    kpi: "P&L, attendees, leads, booked tours, content assets",
+    notes: "Monthly activation with a clear business objective. The plan says leadership and team; pick one accountable owner.",
+  },
+];
+
 async function main() {
   console.log("Clearing previous roadmap structure…");
   await prisma.item.deleteMany();
@@ -505,6 +541,11 @@ async function main() {
         quarterId: sprint,
         priority: "Standard" as const, sortOrder: i, kpi: c.kpi, notes: c.notes,
         objectiveId: BRAND,
+      })),
+      ...CHANNELS.map((c, i) => ({
+        title: c.title, owner: c.owner, view: "RevenueProject" as const,
+        pillar: "Revenue" as const, quarterId: sprint, objectiveId: REVENUE,
+        priority: "Standard" as const, sortOrder: i, kpi: c.kpi, notes: c.notes,
       })),
       ...DECISIONS.map((d, i) => ({
         title: d.title, owner: d.owner, view: "DecisionLog" as const,

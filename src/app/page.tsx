@@ -60,8 +60,8 @@ const TABS: { key: View; label: string; blurb: string }[] = [
   { key: "Money", label: "Money", blurb: "The monthly path to $250K, and the Monday thresholds." },
   { key: "QuarterlyOKR", label: "OKRs", blurb: "Three company objectives per quarter. No more." },
   { key: "Systems", label: "Systems", blurb: "Triggers, the offer ladder and the risk register. The conditions that oblige a decision." },
-  { key: "Blocked", label: "Blocked", blurb: "Anything waiting on a decision, a person or a dependency." },
-  { key: "RevenueProject", label: "Revenue", blurb: "Offer, funnel, campaigns, partnerships, pricing tests." },
+  { key: "Blocked", label: "Blocked", blurb: "Not a list you add to. Set any item's status to Blocked and it appears here, wherever it lives." },
+  { key: "RevenueProject", label: "Revenue", blurb: "The five channels that bring work in, each with its owner and the numbers that judge it. Ongoing, unlike This week." },
   { key: "ContentCalendar", label: "Content", blurb: "Podcast, commercial batches, freestyle, events." },
   { key: "Event", label: "Events", blurb: "Every event needs one primary KPI." },
   { key: "SOP", label: "SOPs", blurb: "Documented in the order revenue touches the work." },
@@ -396,7 +396,15 @@ export default function RoadmapPage() {
 
         {!["QuarterlyOKR", "Money", "Meetings", "Systems"].includes(view) && (
           <>
-            <Items items={visible} call={call} />
+            {visible.length === 0 && view === "Blocked" ? (
+              <Empty>
+                Nothing is blocked, which is what you want. This tab fills itself: open any item
+                anywhere in the app, set its status to Blocked, and it shows up here too. Monday is for
+                clearing it.
+              </Empty>
+            ) : (
+              <Items items={visible} call={call} />
+            )}
             {view !== "Blocked" && (
               <AddItem
                 view={view} quarterId={current?.id ?? null}
