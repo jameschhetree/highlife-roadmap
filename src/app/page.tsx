@@ -27,6 +27,7 @@ import { rollUp, collectedByMonth, monthUnderReview } from "@/lib/rollup";
 import { occurrenceToLog, nextOccurrence, pretty } from "@/lib/meetingDates";
 import { measureKr } from "@/lib/measure";
 import { group } from "@/lib/group";
+import { ownsIt, namesIn } from "@/lib/owner";
 import { pace, monthKeyOf, funnel } from "@/lib/pace";
 import { Curve, PaceBar, Funnel, type Point } from "@/components/chart";
 
@@ -268,18 +269,31 @@ export default function RoadmapPage() {
   // The filter offers everyone on the roster plus anyone who already owns
   // something, so a name left over from before the roster existed is still
   // findable rather than being quietly hidden.
-  const owners = useMemo(
-    () => [
-      "Everyone",
-      ...Array.from(new Set([...people.filter((p) => p.active).map((p) => p.name), ...items.map((i) => i.owner)])).sort(),
-    ],
-    [items, people]
-  );
+  /**
+   * The list you filter by: individuals, not pairings.
+   *
+   * Built straight from the owner strings it listed "JoJo + Jaco" and
+   * "Jojo + Jaco" as two more options — a case typo in the data showing up as a
+   * choice — and picking either one narrowed to a single task. Now that a name
+   * matches inside a shared owner, the pairings are redundant: choosing Jaco
+   * already brings back everything he shares.
+   */
+  const owners = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const name of [
+      ...people.filter((p) => p.active).map((p) => p.name),
+      ...items.flatMap((i) => namesIn(i.owner)),
+    ]) {
+      const k = name.toLowerCase();
+      if (!seen.has(k)) seen.set(k, name);
+    }
+    return ["Everyone", ...Array.from(seen.values()).sort()];
+  }, [items, people]);
   const ownerOptions = useMemo(
     () => Array.from(new Set([...people.filter((p) => p.active).map((p) => p.name), ...items.map((i) => i.owner)])).sort(),
     [items, people]
   );
-  const byOwner = (list: Item[]) => (who === "Everyone" ? list : list.filter((i) => i.owner === who));
+  const byOwner = (list: Item[]) => list.filter((i) => ownsIt(i.owner, who));
 
   const visible = useMemo(() => {
     const base = view === "Blocked"
@@ -534,30 +548,59 @@ export default function RoadmapPage() {
               <Panel className="h-full min-h-0 flex flex-col px-5 py-4">
                 <div className="flex items-start justify-between gap-4 mb-3">
                   <div className="min-w-0">
-                    <p className="text-[15px] leading-tight">This week</p>
+                    <p className="text-[15px] leading-tight">
+                      {who === "Everyone" ? "This week" : `${who}, this week`}
+                    </p>
                     <p className="mt-0.5 text-[13px] text-[var(--muted-3)]">Due before next Monday</p>
                   </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <p className="text-[26px] leading-none tabular-nums tracking-[-0.02em]">
-                      {openThisWeek}
-                    </p>
-                    <select
-                      value={groupBy}
-                      onChange={(e) => setGroupBy(e.target.value as never)}
-                      aria-label="Group by"
-                      className="min-h-[36px] rounded-full px-3 text-[13px]"
-                    >
-                      <option value="due">Due date</option>
-                      <option value="owner">Owner</option>
-                      <option value="priority">Priority</option>
-                      <option value="none">Nothing</option>
-                    </select>
-                  </div>
+                  <p className="shrink-0 text-[26px] leading-none tabular-nums tracking-[-0.02em]">
+                    {openThisWeek}
+                  </p>
+                </div>
+
+                {/*
+                  Whose work, and how it is stacked.
+
+                  The owner filter already existed at the bottom of the left
+                  rail, which is why Jaco never found it — he was looking at the
+                  card. It is the same setting in both places.
+
+                  Two controls rather than one dropdown holding both: a select
+                  can only hold one value, so putting "Jaco" and "Due date" in
+                  the same list would mean picking a person forgot how the list
+                  was grouped.
+                */}
+                <div className="flex items-center gap-2 mb-3">
+                  <select
+                    value={who}
+                    onChange={(e) => setWho(e.target.value)}
+                    aria-label="Whose tasks"
+                    className="min-h-[36px] rounded-full px-3 text-[13px] min-w-0 flex-1"
+                  >
+                    {owners.map((o) => (
+                      <option key={o} value={o}>{o === "Everyone" ? "Everyone" : o}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={groupBy}
+                    onChange={(e) => setGroupBy(e.target.value as never)}
+                    aria-label="Group by"
+                    className="min-h-[36px] rounded-full px-3 text-[13px] min-w-0 flex-1"
+                  >
+                    <option value="due">By due date</option>
+                    <option value="owner">By owner</option>
+                    <option value="priority">By priority</option>
+                    <option value="none">No grouping</option>
+                  </select>
                 </div>
 
                 <div className="min-h-0 flex-1 overflow-y-auto no-scrollbar -mx-1 px-1">
                   {visible.length === 0 ? (
-                    <Empty>Nothing due before Monday.</Empty>
+                    <Empty>
+                      {who === "Everyone"
+                        ? "Nothing due before Monday."
+                        : `Nothing assigned to ${who} this week.`}
+                    </Empty>
                   ) : (
                     <Items items={visible} call={call} ownerOptions={ownerOptions} groupBy={groupBy} dense />
                   )}
