@@ -19,26 +19,64 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { isAdminAuthed } from "@/lib/admin-auth";
 import { BLUR } from "@/components/ui";
+import { ThemeToggle } from "@/components/theme";
 
 type Section = { id: string; number: number; title: string; body: string; pages: string; pageImages: string[] };
 
-/** The plan's text, reflowed. Kept for search and editing, not for looking at. */
+/**
+ * The plan's text, set for reading.
+ *
+ * "Read as text is dope, just make it more readable." So: a 60-character
+ * measure, 1.8 leading, real paragraph spacing, and subheads picked out where
+ * the document has them. A heading here is a short line that starts with a
+ * capital, carries no terminal punctuation, and is not a bullet — which is how
+ * this document writes its subheads and nothing else in it looks like.
+ */
 function Body({ text }: { text: string }) {
-  const blocks = text.split("\n").filter((l) => l.trim());
+  const lines = text.split("\n").filter((l) => l.trim());
+
   return (
-    <>
-      {blocks.map((line, i) => {
+    <div className="max-w-[62ch]">
+      {lines.map((line, i) => {
         const bullet = /^[•·]\s?|^-\s/.test(line);
+        if (bullet) {
+          return (
+            <p key={i} className="flex gap-3 my-2.5 text-[18px] leading-[1.7] text-[var(--muted)]">
+              <span className="shrink-0 text-[var(--muted-3)]">—</span>
+              <span>{line.replace(/^[•·-]\s?/, "")}</span>
+            </p>
+          );
+        }
+
+        const isHeading =
+          line.length <= 58 &&
+          !/[.,:;!?]$/.test(line) &&
+          /^[A-Z]/.test(line) &&
+          line.split(" ").length <= 9;
+
+        if (isHeading) {
+          return (
+            <h3
+              key={i}
+              className="mt-10 mb-3 text-[15px] tracking-[0.14em] uppercase text-[var(--muted-3)]"
+            >
+              {line}
+            </h3>
+          );
+        }
+
+        // A figure on its own line is a statistic from the document, not prose.
+        if (/^\$?[\d.,]+[KM%]?$/.test(line)) {
+          return (
+            <p key={i} className="my-1 text-[26px] tabular-nums text-[var(--text)]">{line}</p>
+          );
+        }
+
         return (
-          <p
-            key={i}
-            className={`text-[17px] leading-[1.75] text-[#d4d4d4] ${bullet ? "pl-5 -indent-5 my-2" : "my-4"}`}
-          >
-            {bullet ? <><span className="text-[#555]">— </span>{line.replace(/^[•·-]\s?/, "")}</> : line}
-          </p>
+          <p key={i} className="my-5 text-[18px] leading-[1.8] text-[var(--text)]">{line}</p>
         );
       })}
-    </>
+    </div>
   );
 }
 
@@ -109,17 +147,19 @@ export default function PlanPage() {
             key={s.id}
             onClick={() => open(s.id)}
             className={`w-full text-left rounded-lg px-3 py-2.5 min-h-[44px] flex gap-3 items-baseline transition-colors ${
-              on ? "bg-white/[0.09] text-white" : "text-[#888] hover:bg-white/[0.04] hover:text-[#ccc]"
+              on
+                ? "bg-[var(--text)]/[0.10] text-[var(--text)] font-medium"
+                : "text-[var(--muted)] hover:bg-[var(--text)]/[0.05] hover:text-[var(--text)]"
             }`}
           >
-            <span className="shrink-0 text-[12px] tabular-nums text-[#555]">
+            <span className="shrink-0 text-[12px] tabular-nums text-[var(--muted-3)]">
               {String(s.number).padStart(2, "0")}
             </span>
             <span className="text-[15px] leading-snug">{s.title}</span>
           </button>
         );
       })}
-      {listed.length === 0 && <p className="px-3 py-3 text-[15px] text-[#666]">No match.</p>}
+      {listed.length === 0 && <p className="px-3 py-3 text-[15px] text-[var(--muted-3)]">No match.</p>}
     </nav>
   );
 
@@ -127,14 +167,17 @@ export default function PlanPage() {
     <div className="min-h-screen">
       <header className="px-3 md:px-8">
         <div style={BLUR(24, true)} className="sticky top-3 z-30 w-fit max-w-full mx-auto pill-nav px-5 h-[56px] flex items-center gap-3">
-          <Link href="/" className="text-[15px] text-[#888] hover:text-white min-h-[44px] leading-[44px]">
+          <Link href="/" className="text-[15px] text-[var(--muted)] hover:text-[var(--text)] min-h-[44px] leading-[44px]">
             ← Roadmap
           </Link>
-          <span className="text-[15px] text-[#333]">/</span>
+          <span className="text-[15px] text-[var(--muted-3)]">/</span>
           <span className="text-[15px] truncate">The plan</span>
+          <div className="ml-auto flex items-center gap-2">
+            <ThemeToggle />
+          </div>
           <button
             onClick={() => setNavOpen((v) => !v)}
-            style={BLUR(20)} className="ml-auto lg:hidden min-h-[44px] px-5 rounded-full bezel text-[15px]"
+            style={BLUR(20)} className="lg:hidden min-h-[44px] px-5 rounded-full bezel text-[15px]"
           >
             {navOpen ? "Close" : "Sections"}
           </button>
@@ -157,10 +200,10 @@ export default function PlanPage() {
 
         <main ref={readingRef} className={navOpen ? "hidden lg:block" : "block"}>
           {!active ? (
-            <p className="text-[16px] text-[#888]">Loading the plan…</p>
+            <p className="text-[16px] text-[var(--muted)]">Loading the plan…</p>
           ) : (
             <article className="max-w-[68ch]">
-              <p className="text-[11px] tracking-[0.2em] uppercase text-[#666] mb-3">
+              <p className="text-[11px] tracking-[0.2em] uppercase text-[var(--muted-3)] mb-3">
                 Section {String(active.number).padStart(2, "0")} · pages {active.pages}
               </p>
               <h1 className="text-[32px] md:text-[38px] leading-[1.1] font-semibold tracking-[-0.02em] mb-8">

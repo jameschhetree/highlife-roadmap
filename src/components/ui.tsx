@@ -31,6 +31,14 @@ const INPUT =
   "bg-white/[0.04] border border-white/10 text-white placeholder:text-[#666] " +
   "focus:outline-none focus:border-white/40 focus:bg-white/[0.07]";
 
+/**
+ * A field that saves, and says so.
+ *
+ * It saved on blur before, which works and looks like nothing happening — Jaco
+ * asked for a save button because he could not tell whether a number had
+ * landed. Blur still saves, so nothing is lost by tapping elsewhere, but a Save
+ * button appears the moment the value differs and a tick confirms it went in.
+ */
 export function Field({
   label, value, onSave, type = "text", multiline = false, placeholder = "", className = "",
 }: {
@@ -38,28 +46,50 @@ export function Field({
   type?: string; multiline?: boolean; placeholder?: string; className?: string;
 }) {
   const [v, setV] = useState(value);
-  useEffect(() => setV(value), [value]);
+  const [saved, setSaved] = useState(false);
+  useEffect(() => { setV(value); setSaved(false); }, [value]);
+
+  const dirty = v !== value;
+
+  const commit = () => {
+    if (!dirty) return;
+    onSave(v);
+    setSaved(true);
+    // Long enough to notice, short enough not to linger over the next edit.
+    setTimeout(() => setSaved(false), 2200);
+  };
 
   return (
     <label className={`block ${className}`}>
       {label && (
-        <span className="block text-[11px] tracking-[0.14em] uppercase text-[#666] mb-2">{label}</span>
+        <span className="flex items-baseline justify-between gap-2 mb-2">
+          <span className="text-[11px] tracking-[0.14em] uppercase text-[#666]">{label}</span>
+          {saved && <span className="text-[11px] tracking-[0.1em] uppercase text-[#4ade80]">saved</span>}
+        </span>
       )}
       {multiline ? (
         <textarea
           value={v} placeholder={placeholder} rows={4}
           onChange={(e) => setV(e.target.value)}
-          onBlur={() => v !== value && onSave(v)}
+          onBlur={commit}
           className={`${INPUT} min-h-[120px] resize-y`}
         />
       ) : (
         <input
           type={type} value={v} placeholder={placeholder}
           onChange={(e) => setV(e.target.value)}
-          onBlur={() => v !== value && onSave(v)}
+          onBlur={commit}
           onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
           className={`${INPUT} min-h-[48px]`}
         />
+      )}
+      {dirty && (
+        <button
+          onClick={(e) => { e.preventDefault(); commit(); }}
+          className="mt-2 min-h-[44px] px-5 rounded-full bg-white text-black text-[15px]"
+        >
+          Save
+        </button>
       )}
     </label>
   );

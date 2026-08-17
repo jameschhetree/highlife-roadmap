@@ -16,6 +16,7 @@ import { isAdminAuthed } from "@/lib/admin-auth";
 import { Eyebrow, Empty, Field, Choice, Button, Tick, Tag, Reveal, Panel, BLUR } from "@/components/ui";
 import { gradeAll, type Card } from "@/lib/grade";
 import { Assistant } from "@/components/assistant";
+import { ThemeToggle } from "@/components/theme";
 import { guideFor } from "@/lib/today";
 import { suggest } from "@/lib/priorities";
 import { rollUp, collectedByMonth, monthUnderReview } from "@/lib/rollup";
@@ -113,7 +114,7 @@ const MEETINGS: { kind: string; label: string; when: string; agenda: string[]; s
 
 const SCORECARD: [keyof Meeting, string][] = [
   ["cashCollected", "Cash collected"], ["podcastRevenue", "Podcast revenue"],
-  ["podcastMrr", "Podcast MRR"], ["musicRevenue", "Music revenue"],
+  ["podcastMrr", "Podcast MRR"], ["musicRevenue", "Studio revenue"],
   ["leads", "Leads"], ["toursBooked", "Tours booked"], ["toursShowed", "Tours showed"],
   ["tourCloseRate", "Tour close rate %"], ["recurringConversion", "Recurring conversion %"],
   ["roomHours", "Podcast room hours"], ["editTurnaround", "Edit turnaround, days"],
@@ -434,6 +435,7 @@ export default function RoadmapPage() {
           <Link href="/plan" className="inline-block">
             <Button kind="solid" arrow>Read the plan</Button>
           </Link>
+          <ThemeToggle />
           <select
             value={who}
             onChange={(e) => setWho(e.target.value)}
@@ -1219,7 +1221,7 @@ function MonthlyRollup({
   const TOTALS: [string, string, boolean][] = [
     ["cashCollected", "Cash collected", true],
     ["podcastRevenue", "Podcast revenue", true],
-    ["musicRevenue", "Music revenue", true],
+    ["musicRevenue", "Studio revenue", true],
     ["leads", "Leads", false],
     ["toursBooked", "Tours booked", false],
     ["toursShowed", "Tours showed", false],
