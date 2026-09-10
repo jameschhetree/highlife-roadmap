@@ -1680,12 +1680,16 @@ function Okrs({
 }
 
 /** How many reporting weeks a month has: its Sundays, since a Monday card's
- *  covered week belongs to the month its Sunday falls in (see lib/rollup). */
-function weeksInMonth(key: string): number {
+ *  covered week belongs to the month its Sunday falls in (see lib/rollup) —
+ *  but only Sundays that can end a covered week. August 2026 has five Sundays
+ *  and a plan that started on the 10th, so only three cards can ever exist;
+ *  dividing the pro-rated $6,000 by five graded its weeks against $1,200 when
+ *  the real ask was $2,000. */
+function weeksInMonth(key: string, firstWeekEnd: number | null): number {
   const [y, mo] = key.split("-").map(Number);
   let n = 0;
   for (let d = new Date(Date.UTC(y, mo - 1, 1)); d.getUTCMonth() === mo - 1; d = new Date(d.getTime() + 86400000)) {
-    if (d.getUTCDay() === 0) n++;
+    if (d.getUTCDay() === 0 && (firstWeekEnd == null || d.getTime() >= firstWeekEnd)) n++;
   }
   return n;
 }
@@ -1721,6 +1725,9 @@ function WeekByWeek({
 
   const num = (v: number | null) => (v == null ? "" : String(v));
   const fixedMonthly = fixed.reduce((n, f) => n + f.amount, 0);
+  // The earliest Sunday a card can cover: six days after the plan's first Monday.
+  const planStart = planStartOf(weeks);
+  const firstWeekEnd = planStart ? Date.parse(planStart) + 6 * 86400000 : null;
 
   return (
     <section>
@@ -1748,12 +1755,13 @@ function WeekByWeek({
             const end = coveredWeekEnd(m.date);
             const key = `${end.getUTCFullYear()}-${String(end.getUTCMonth() + 1).padStart(2, "0")}`;
             const month = months.find((x) => x.key === key) ?? null;
-            const perWeek = month ? month.target / weeksInMonth(key) : null;
+            const wks = weeksInMonth(key, firstWeekEnd);
+            const perWeek = month && wks > 0 ? month.target / wks : null;
             const hit = m.cashCollected != null && perWeek != null ? m.cashCollected >= perWeek : null;
             // The week's share of the fixed overhead, split the same way the
             // revenue target is. Net is what the week actually made: cash in,
             // minus that share, minus whatever was spent.
-            const fixedShare = fixedMonthly > 0 ? fixedMonthly / weeksInMonth(key) : 0;
+            const fixedShare = fixedMonthly > 0 && wks > 0 ? fixedMonthly / wks : 0;
             const net = m.cashCollected != null && (fixedShare > 0 || m.expenses != null)
               ? m.cashCollected - fixedShare - (m.expenses ?? 0)
               : null;
@@ -1774,7 +1782,7 @@ function WeekByWeek({
                   </span>
                   <span className="mt-1 block text-[14px] text-[var(--muted-3)] tabular-nums">
                     {perWeek != null && month
-                      ? <>target {dollars(perWeek)} — {dollars(month.target)} monthly ÷ {weeksInMonth(key)} weeks</>
+                      ? <>target {dollars(perWeek)} — {dollars(month.target)} monthly ÷ {wks} weeks</>
                       : "no monthly target set"}
                     {fixedShare > 0 && <> · fixed {dollars(fixedShare)}/wk</>}
                     {m.expenses != null && <> · {dollars(m.expenses)} spent</>}
