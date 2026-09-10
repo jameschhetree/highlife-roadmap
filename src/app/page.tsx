@@ -1725,9 +1725,16 @@ function WeekByWeek({
 
   const num = (v: number | null) => (v == null ? "" : String(v));
   const fixedMonthly = fixed.reduce((n, f) => n + f.amount, 0);
-  // The earliest Sunday a card can cover: six days after the plan's first Monday.
-  const planStart = planStartOf(weeks);
-  const firstWeekEnd = planStart ? Date.parse(planStart) + 6 * 86400000 : null;
+  // The earliest Sunday a card can cover: six days after the plan's first
+  // Monday. Normalised to the calendar date first — startsOn is stored at
+  // EST midnight (04:00Z), which otherwise pushes the boundary past the
+  // Sunday it is meant to include.
+  const firstWeekEnd = (() => {
+    const planStart = planStartOf(weeks);
+    if (!planStart) return null;
+    const d = new Date(planStart);
+    return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 6);
+  })();
 
   return (
     <section>
