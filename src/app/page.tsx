@@ -66,6 +66,7 @@ type Month = { id: string; key: string; label: string; target: number; cumulativ
 type Threshold = { id: string; metric: string; green: string; yellow: string; red: string };
 type Test = { id: string; text: string; passed: boolean };
 type Person = { id: string; name: string; role: string; owns: string; active: boolean };
+type Fixed = { id: string; label: string; amount: number };
 type Trigger = { id: string; kind: string; signal: string; condition: string; action: string; firing: boolean; notes: string };
 type Offer = { id: string; name: string; price: string; designedFor: string; scope: string; isPackage: boolean; costStudied: boolean };
 type Risk = { id: string; risk: string; showsUpAs: string; mitigation: string; mitigated: boolean; owner: string };
@@ -234,6 +235,7 @@ export default function RoadmapPage() {
   const [navOpen, setNavOpen] = useState(false);
   const [groupBy, setGroupBy] = useState<"due" | "owner" | "priority" | "none">("due");
   const [people, setPeople] = useState<Person[]>([]);
+  const [fixed, setFixed] = useState<Fixed[]>([]);
   const [error, setError] = useState("");
   const [adding, setAdding] = useState(false);
 
@@ -243,8 +245,9 @@ export default function RoadmapPage() {
   }, [router]);
 
   const load = async () => {
-    const [r, m, sy, pe] = await Promise.all([
+    const [r, m, sy, pe, fx] = await Promise.all([
       fetch("/api/roadmap"), fetch("/api/meetings"), fetch("/api/systems"), fetch("/api/people"),
+      fetch("/api/fixed-expenses"),
     ]);
     if (!r.ok) { setError("Could not load the roadmap."); return; }
     const d = await r.json();
@@ -253,6 +256,7 @@ export default function RoadmapPage() {
     if (m.ok) setMeetings(await m.json());
     if (sy.ok) setSystems(await sy.json());
     if (pe.ok) setPeople(await pe.json());
+    if (fx.ok) setFixed(await fx.json());
   };
   useEffect(() => { if (ready) load(); }, [ready]);
 
@@ -531,7 +535,7 @@ export default function RoadmapPage() {
         {view === "Money" && (
           <Money
             months={months} thresholds={thresholds} tests={tests} meetings={meetings}
-            weeks={weeks} quarter={current} items={items} call={call}
+            weeks={weeks} quarter={current} items={items} fixed={fixed} call={call}
           />
         )}
         {view === "Meetings" && <MeetingsView meetings={meetings} call={call} onOpenMoney={() => setView("Money")} />}
@@ -1700,10 +1704,10 @@ function weeksInMonth(key: string): number {
  * place to swap them in.
  */
 function WeekByWeek({
-  weekly, months, thresholds, meetings, weeks, quarter, items, call,
+  weekly, months, thresholds, meetings, weeks, quarter, items, fixed, call,
 }: {
   weekly: Meeting[]; months: Month[]; thresholds: Threshold[]; meetings: Meeting[];
-  weeks: Week[]; quarter?: Quarter; items: Item[];
+  weeks: Week[]; quarter?: Quarter; items: Item[]; fixed: Fixed[];
   call: (u: string, m: string, b?: unknown) => Promise<boolean>;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
@@ -1716,6 +1720,7 @@ function WeekByWeek({
   const dueLogged = rows.some((m) => m.date.slice(0, 10) === due);
 
   const num = (v: number | null) => (v == null ? "" : String(v));
+  const fixedMonthly = fixed.reduce((n, f) => n + f.amount, 0);
 
   return (
     <section>
@@ -1723,6 +1728,8 @@ function WeekByWeek({
       <p className="text-[16px] leading-relaxed text-[var(--muted)] mb-6">
         Cash in and spend out for each week, against a target derived from the month. Enter the
         numbers here — they live on the week&apos;s Monday card, so the meeting sees the same figures.
+        Spend is the week&apos;s variable outgoings; the fixed overhead below is shared out per week
+        automatically.
       </p>
 
       {!dueLogged && (
@@ -1743,7 +1750,13 @@ function WeekByWeek({
             const month = months.find((x) => x.key === key) ?? null;
             const perWeek = month ? month.target / weeksInMonth(key) : null;
             const hit = m.cashCollected != null && perWeek != null ? m.cashCollected >= perWeek : null;
-            const net = m.cashCollected != null && m.expenses != null ? m.cashCollected - m.expenses : null;
+            // The week's share of the fixed overhead, split the same way the
+            // revenue target is. Net is what the week actually made: cash in,
+            // minus that share, minus whatever was spent.
+            const fixedShare = fixedMonthly > 0 ? fixedMonthly / weeksInMonth(key) : 0;
+            const net = m.cashCollected != null && (fixedShare > 0 || m.expenses != null)
+              ? m.cashCollected - fixedShare - (m.expenses ?? 0)
+              : null;
             const open = openId === m.id;
             return (
               <div key={m.id} className="py-4">
@@ -1763,8 +1776,13 @@ function WeekByWeek({
                     {perWeek != null && month
                       ? <>target {dollars(perWeek)} — {dollars(month.target)} monthly ÷ {weeksInMonth(key)} weeks</>
                       : "no monthly target set"}
+                    {fixedShare > 0 && <> · fixed {dollars(fixedShare)}/wk</>}
                     {m.expenses != null && <> · {dollars(m.expenses)} spent</>}
-                    {net != null && <> · {net < 0 ? `−${dollars(-net)}` : dollars(net)} net</>}
+                    {net != null && (
+                      <> · <span className={net < 0 ? "text-[var(--alert)]" : "text-[var(--ok)]"}>
+                        {net < 0 ? `−${dollars(-net)}` : dollars(net)}
+                      </span> {m.expenses == null && fixedShare > 0 ? "net of fixed" : "net"}</>
+                    )}
                   </span>
                 </button>
 
@@ -1850,11 +1868,103 @@ function WeekByWeek({
   );
 }
 
+/**
+ * The recurring overhead, entered once rather than retyped every Monday.
+ *
+ * Rent, subscriptions, retainers — the costs that do not vary week to week.
+ * James asked for these separate from weekly spend, and they feed the week
+ * rows above as a per-week share the same way the revenue target does.
+ */
+function FixedExpenses({
+  fixed, call,
+}: { fixed: Fixed[]; call: (u: string, m: string, b?: unknown) => Promise<boolean> }) {
+  const [label, setLabel] = useState("");
+  const [amount, setAmount] = useState("");
+  const [adding, setAdding] = useState(false);
+  const total = fixed.reduce((n, f) => n + f.amount, 0);
+
+  const add = async () => {
+    if (await call("/api/fixed-expenses", "POST", { label, amount })) {
+      setLabel(""); setAmount(""); setAdding(false);
+    }
+  };
+
+  return (
+    <section className="mt-12">
+      <Eyebrow>Monthly fixed expenses</Eyebrow>
+      <p className="text-[16px] leading-relaxed text-[var(--muted)] mb-6">
+        The overhead that lands every month regardless — rent, subscriptions, retainers. Enter it
+        once; every week above carries its share automatically.
+      </p>
+
+      {fixed.length > 0 && (
+        <>
+          <div className="divide-y divide-white/10 border-y border-white/10">
+            {fixed.map((f) => (
+              <div key={f.id} className="py-4 flex flex-wrap items-end gap-4">
+                <SaveGroup className="flex-1 min-w-[260px]">
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="What" value={f.label}
+                      onSave={(v) => call(`/api/fixed-expenses/${f.id}`, "PATCH", { label: v })} />
+                    <Field label="Per month" type="number" value={String(f.amount)}
+                      onSave={(v) => call(`/api/fixed-expenses/${f.id}`, "PATCH", { amount: v })} />
+                  </div>
+                </SaveGroup>
+                <button
+                  onClick={() => call(`/api/fixed-expenses/${f.id}`, "DELETE")}
+                  className="min-h-[44px] text-[15px] text-[var(--muted-3)] hover:text-[var(--alert)]"
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+          <p className="mt-4 text-[15px] text-[var(--muted)] tabular-nums">
+            {dollars(total)} a month in fixed costs.
+          </p>
+        </>
+      )}
+
+      {adding ? (
+        <div className="mt-5 grid gap-4 max-w-[440px]">
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="block text-[11px] tracking-[0.14em] uppercase text-[var(--muted-3)] mb-2">What</span>
+              <input
+                value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Rent"
+                className="w-full min-h-[48px] px-3.5 text-[16px] rounded-[10px] bg-white/[0.04] border border-white/10 text-[var(--text)]"
+              />
+            </label>
+            <label className="block">
+              <span className="block text-[11px] tracking-[0.14em] uppercase text-[var(--muted-3)] mb-2">Per month</span>
+              <input
+                type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0"
+                className="w-full min-h-[48px] px-3.5 text-[16px] rounded-[10px] bg-white/[0.04] border border-white/10 text-[var(--text)]"
+              />
+            </label>
+          </div>
+          <div className="flex gap-3">
+            <Button kind="solid" onClick={add} disabled={!label.trim() || amount.trim() === ""}>Add</Button>
+            <Button onClick={() => setAdding(false)}>Cancel</Button>
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => setAdding(true)}
+          className="mt-4 min-h-[44px] text-[15px] text-[var(--muted)] hover:text-[var(--text)]"
+        >
+          + Add a fixed expense
+        </button>
+      )}
+    </section>
+  );
+}
+
 function Money({
-  months, thresholds, tests, meetings, weeks, quarter, items, call,
+  months, thresholds, tests, meetings, weeks, quarter, items, fixed, call,
 }: {
   months: Month[]; thresholds: Threshold[]; tests: Test[]; meetings: Meeting[];
-  weeks: Week[]; quarter?: Quarter; items: Item[];
+  weeks: Week[]; quarter?: Quarter; items: Item[]; fixed: Fixed[];
   call: (u: string, m: string, b?: unknown) => Promise<boolean>;
 }) {
   // Actuals come from the Monday cards. Nothing here is typed twice.
@@ -1878,8 +1988,10 @@ function Money({
     <>
       <WeekByWeek
         weekly={weekly} months={months} thresholds={thresholds} meetings={meetings}
-        weeks={weeks} quarter={quarter} items={items} call={call}
+        weeks={weeks} quarter={quarter} items={items} fixed={fixed} call={call}
       />
+
+      <FixedExpenses fixed={fixed} call={call} />
 
       <section className="mt-12">
         <Eyebrow>Target against actual</Eyebrow>

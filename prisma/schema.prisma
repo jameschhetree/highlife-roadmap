@@ -263,6 +263,20 @@ model MonthTarget {
   updatedAt DateTime @updatedAt
 }
 
+/// Recurring monthly overhead — rent, subscriptions, retainers. James asked
+/// for fixed expenses separate from weekly spend: entered once here, edited
+/// when a cost changes, and the weekly view carries a per-week share the same
+/// way the derived revenue target does. Week-to-week spend stays on Meeting.
+model FixedExpense {
+  id        String @id @default(cuid())
+  label     String
+  amount    Float // dollars per month
+  sortOrder Int    @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 /// Section 15's Monday thresholds. Stored rather than hardcoded because the plan
 /// says to recalibrate them after 60-90 days of real data.
 model Threshold {
