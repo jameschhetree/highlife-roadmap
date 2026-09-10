@@ -206,6 +206,9 @@ model Meeting {
   roomHours          Float?
   editTurnaround     Float?
   roadmapCompletion  Float?
+  /// What went out that week — the other half of "are we hitting targets".
+  /// Added 2026-09-10; the scorecard tracked revenue only.
+  expenses           Float?
 
   /// Wednesday and Sunday do not get a scoreboard — the numbers belong to
   /// Monday. What they need is a prep brief written before the meeting, so the

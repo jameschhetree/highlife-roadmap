@@ -3,7 +3,7 @@ import { requirePrisma } from "@/lib/db";
 const NUMERIC = [
   "cashCollected", "podcastRevenue", "podcastMrr", "musicRevenue", "leads",
   "toursBooked", "toursShowed", "tourCloseRate", "recurringConversion",
-  "roomHours", "editTurnaround", "roadmapCompletion",
+  "roomHours", "editTurnaround", "roadmapCompletion", "expenses",
 ] as const;
 
 export async function PATCH(request: Request, ctx: { params: Promise<{ id: string }> }) {

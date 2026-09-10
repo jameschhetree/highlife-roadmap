@@ -15,7 +15,6 @@ import Link from "next/link";
 import SprintRoad from "@/components/SprintRoad";
 import MondayFlow from "@/components/MondayFlow";
 import TwelveMonth from "@/components/TwelveMonth";
-import Dashboard from "@/components/Dashboard";
 import { Dial } from "@/components/OkrDial";
 import { isAdminAuthed } from "@/lib/admin-auth";
 import { Eyebrow, Empty, Field, Choice, Button, Tick, Tag, Reveal, Panel, SaveGroup, Fold, BLUR } from "@/components/ui";
@@ -23,12 +22,12 @@ import { gradeAll, type Card } from "@/lib/grade";
 import { Assistant } from "@/components/assistant";
 import { ThemeToggle } from "@/components/theme";
 import {
-  IconWeek, IconMeeting, IconMoney, IconTarget, IconSystems, IconRevenue,
+  IconWeek, IconMeeting, IconMoney, IconSystems, IconRevenue,
   IconContent, IconEvent, IconSop, IconTeam, IconBlocked, IconDecision, IconPlan,
 } from "@/components/icons";
 import { guideFor } from "@/lib/today";
 import { suggest } from "@/lib/priorities";
-import { rollUp, collectedByMonth, monthUnderReview } from "@/lib/rollup";
+import { rollUp, collectedByMonth, monthUnderReview, coveredWeekEnd } from "@/lib/rollup";
 import { occurrenceToLog, nextOccurrence, pretty, localToday } from "@/lib/meetingDates";
 import { measureKr } from "@/lib/measure";
 import { countsFrom, cardsFor } from "@/lib/counts";
@@ -39,7 +38,7 @@ import { pace, monthKeyOf, funnel } from "@/lib/pace";
 import { Curve, PaceBar, Funnel, Bars, type Point } from "@/components/chart";
 
 type View =
-  | "Dashboard" | "ThisWeek" | "Roadmap12" | "Meetings" | "QuarterlyOKR" | "Money"
+  | "ThisWeek" | "Money" | "Plan" | "Meetings"
   | "RevenueProject" | "ContentCalendar" | "Event" | "SOP" | "Systems" | "Team"
   | "Blocked" | "DecisionLog";
 
@@ -76,28 +75,37 @@ type Meeting = {
   musicRevenue: number | null; leads: number | null; toursBooked: number | null;
   toursShowed: number | null; tourCloseRate: number | null; recurringConversion: number | null;
   roomHours: number | null; editTurnaround: number | null; roadmapCompletion: number | null;
+  expenses: number | null;
   prep: string; decisions: string; notes: string;
 };
 
-const TABS: { key: View; label: string; blurb: string; icon: (p: { className?: string }) => React.ReactElement }[] = [
-  // Ordered the way the plan runs, not alphabetically: today's work, then the
-  // meeting that sets it, then the money it serves, then the quarter it rolls
-  // up to, then the systems that watch it, then the working surfaces.
-  { icon: IconTarget, key: "Dashboard", label: "Dashboard", blurb: "Where the whole thing stands, in one screen." },
+type Tab = { key: View; label: string; blurb: string; icon: (p: { className?: string }) => React.ReactElement };
+
+/**
+ * Three doors, then everything else behind More.
+ *
+ * Fourteen top-level tabs was a filing cabinet, and the two James actually
+ * lives in — this week's tasks and the money — were level with seeded pages
+ * nobody had ever touched. Nothing was deleted in the flattening: every old
+ * tab is still here, one fold down.
+ */
+const TABS: Tab[] = [
   { icon: IconWeek, key: "ThisWeek", label: "This week", blurb: "Commitments due before next Monday. One owner, one date." },
-  { icon: IconSystems, key: "Roadmap12", label: "Roadmap", blurb: "The twelve month plan. Four phases, every task and its steps." },
-  { icon: IconMeeting, key: "Meetings", label: "Meetings", blurb: "Monday carries the scorecard. Wednesday and Sunday get a prep brief." },
-  { icon: IconMoney, key: "Money", label: "Money", blurb: "The monthly path to $250K, and the Monday thresholds." },
-  { icon: IconTarget, key: "QuarterlyOKR", label: "OKRs", blurb: "Three company objectives per quarter. No more." },
-  { icon: IconSystems, key: "Systems", label: "Systems", blurb: "Triggers, the offer ladder and the risk register. The conditions that oblige a decision." },
-  { icon: IconBlocked, key: "Blocked", label: "Blocked", blurb: "Not a list you add to. Set any item's status to Blocked and it appears here, wherever it lives." },
-  { icon: IconRevenue, key: "RevenueProject", label: "Revenue", blurb: "Two things: who owns each way work comes in, and the experiments running against them." },
-  { icon: IconContent, key: "ContentCalendar", label: "Content", blurb: "Podcast, commercial batches, freestyle, events." },
-  { icon: IconEvent, key: "Event", label: "Events", blurb: "Every event needs one primary KPI." },
+  { icon: IconMoney, key: "Money", label: "Money", blurb: "Cash in and spend out, week by week, against the targets. Numbers are entered here." },
+  { icon: IconPlan, key: "Plan", label: "Plan", blurb: "The long range in one place: twelve months of phases, then the quarterly OKRs." },
+];
+const MORE_TABS: Tab[] = [
+  { icon: IconMeeting, key: "Meetings", label: "Meetings", blurb: "Agendas and prep briefs. The numbers live on Money now." },
   { icon: IconSop, key: "SOP", label: "SOPs", blurb: "Documented in the order revenue touches the work." },
   { icon: IconTeam, key: "Team", label: "Team", blurb: "Who is accountable for what. Owners are picked from this list, so a typo cannot invent a person." },
+  { icon: IconSystems, key: "Systems", label: "Systems", blurb: "Triggers, the offer ladder and the risk register. The conditions that oblige a decision." },
+  { icon: IconRevenue, key: "RevenueProject", label: "Channels", blurb: "Who owns each way work comes in, and the experiments running against them." },
+  { icon: IconContent, key: "ContentCalendar", label: "Content", blurb: "Podcast, commercial batches, freestyle, events." },
+  { icon: IconEvent, key: "Event", label: "Events", blurb: "Every event needs one primary KPI." },
   { icon: IconDecision, key: "DecisionLog", label: "Decisions", blurb: "Rockville, hires, packages, room capacity." },
+  { icon: IconBlocked, key: "Blocked", label: "Blocked", blurb: "Not a list you add to. Set any item's status to Blocked and it appears here, wherever it lives." },
 ];
+const ALL_TABS: Tab[] = [...TABS, ...MORE_TABS];
 
 /**
  * The meetings, with section 10's agenda detail rather than just its headings.
@@ -210,7 +218,8 @@ function coveringWeek(meetingDate: string): string {
 export default function RoadmapPage() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
-  const [view, setView] = useState<View>("Dashboard");
+  const [view, setView] = useState<View>("ThisWeek");
+  const [moreOpen, setMoreOpen] = useState(false);
   const [who, setWho] = useState("Everyone");
   const [quarters, setQuarters] = useState<Quarter[]>([]);
   const [items, setItems] = useState<Item[]>([]);
@@ -380,30 +389,58 @@ export default function RoadmapPage() {
           </div>
 
           <nav className="space-y-0.5">
-            {TABS.filter((t) => t.key !== "Blocked" || blocked > 0).map((t) => {
-              const n = t.key === "Blocked" ? blocked
+            {(() => {
+              const countFor = (t: Tab) => t.key === "Blocked" ? blocked
                 : t.key === "Team" ? people.filter((x) => x.active).length
-                : ["Money", "Meetings", "QuarterlyOKR"].includes(t.key) ? 0
+                : ["Money", "Meetings", "Plan"].includes(t.key) ? 0
                 : byOwner(items.filter((i) => i.view === t.key)).length;
-              const active = view === t.key;
-              const Icon = t.icon;
+              const NavButton = ({ t, sub }: { t: Tab; sub?: boolean }) => {
+                const n = countFor(t);
+                const active = view === t.key;
+                const Icon = t.icon;
+                return (
+                  <button
+                    key={t.key}
+                    onClick={() => { setView(t.key); setNavOpen(false); }}
+                    className={`w-full min-h-[46px] px-3 rounded-xl flex items-center gap-3 text-[15px]
+                      transition-colors duration-200 ${sub ? "pl-6" : ""} ${
+                      active
+                        ? "bg-[var(--text)]/[0.10] text-[var(--text)]"
+                        : "text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--text)]/[0.05]"
+                    }`}
+                  >
+                    <Icon className={`w-5 h-5 shrink-0 ${active ? "" : "opacity-70"}`} />
+                    <span className="flex-1 text-left">{t.label}</span>
+                    {n > 0 && <span className="text-[13px] tabular-nums text-[var(--muted-3)]">{n}</span>}
+                  </button>
+                );
+              };
+              // The fold stays open while the reader is inside it, so picking
+              // Meetings does not close the drawer they navigated in through.
+              const inMore = MORE_TABS.some((t) => t.key === view);
+              const showMore = moreOpen || inMore;
               return (
-                <button
-                  key={t.key}
-                  onClick={() => { setView(t.key); setNavOpen(false); }}
-                  className={`w-full min-h-[46px] px-3 rounded-xl flex items-center gap-3 text-[15px]
-                    transition-colors duration-200 ${
-                    active
-                      ? "bg-[var(--text)]/[0.10] text-[var(--text)]"
-                      : "text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--text)]/[0.05]"
-                  }`}
-                >
-                  <Icon className={`w-5 h-5 shrink-0 ${active ? "" : "opacity-70"}`} />
-                  <span className="flex-1 text-left">{t.label}</span>
-                  {n > 0 && <span className="text-[13px] tabular-nums text-[var(--muted-3)]">{n}</span>}
-                </button>
+                <>
+                  {TABS.map((t) => <NavButton key={t.key} t={t} />)}
+                  <button
+                    onClick={() => setMoreOpen((v) => !v || inMore)}
+                    className={`w-full min-h-[46px] px-3 rounded-xl flex items-center gap-3 text-[15px]
+                      transition-colors duration-200 ${
+                      showMore ? "text-[var(--text)]" : "text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--text)]/[0.05]"
+                    }`}
+                  >
+                    <span className="w-5 shrink-0 text-center leading-none">{showMore ? "−" : "+"}</span>
+                    <span className="flex-1 text-left">More</span>
+                    {blocked > 0 && !showMore && (
+                      <span className="text-[13px] tabular-nums text-[var(--alert)]">{blocked}</span>
+                    )}
+                  </button>
+                  {showMore && MORE_TABS
+                    .filter((t) => t.key !== "Blocked" || blocked > 0)
+                    .map((t) => <NavButton key={t.key} t={t} sub />)}
+                </>
               );
-            })}
+            })()}
           </nav>
 
           <div className="mt-6 pt-5 border-t border-white/10">
@@ -444,7 +481,7 @@ export default function RoadmapPage() {
             where you were. */}
         <div className="flex items-baseline justify-between gap-4 flex-wrap">
           <h1 className={`${dashboard ? "text-[22px] md:text-[24px]" : "text-[30px] md:text-[36px]"} leading-[1.05] font-semibold tracking-[-0.025em]`}>
-            {TABS.find((t) => t.key === view)?.label}
+            {ALL_TABS.find((t) => t.key === view)?.label}
           </h1>
           {current && view === "ThisWeek" && (
             <p className="text-[15px] text-[var(--muted)] tabular-nums">
@@ -453,7 +490,7 @@ export default function RoadmapPage() {
           )}
         </div>
         <p className={`mt-2 text-[16px] leading-relaxed text-[var(--muted)] max-w-[70ch] ${dashboard ? "board-hide" : ""}`}>
-          {TABS.find((t) => t.key === view)?.blurb}
+          {ALL_TABS.find((t) => t.key === view)?.blurb}
           {who !== "Everyone" && <span className="text-[var(--text)]"> Showing {who} only.</span>}
         </p>
         {dashboard && who !== "Everyone" && (
@@ -478,29 +515,26 @@ export default function RoadmapPage() {
           </div>
         )}
 
-        {view === "Dashboard" && (
-          <Dashboard
-            weeks={weeks}
-            currentWeek={currentWeek?.week}
-            objectives={current?.objectives ?? []}
-            openCommitments={openThisWeek}
-            /* Month's cash comes from the Monday scorecards, not the month row -
-               the month's own collected field is still null and the numbers he
-               actually types every Monday are the live ones. */
-            cashThisMonth={(() => {
-              const key = new Date().toISOString().slice(0, 7);
-              return meetings
-                .filter((m) => m.date.slice(0, 7) === key && m.cashCollected != null)
-                .reduce((n, m) => n + (m.cashCollected ?? 0), 0);
-            })()}
-            cashTarget={months.find((m) => m.key === new Date().toISOString().slice(0, 7))?.target ?? null}
-            onGo={(v) => setView(v as View)}
+        {/* The long range, one door: the twelve months, then the quarter. */}
+        {view === "Plan" && (
+          <div className="space-y-16">
+            <TwelveMonth />
+            <section>
+              <Eyebrow>Quarterly OKRs</Eyebrow>
+              <p className="text-[16px] leading-relaxed text-[var(--muted)] mb-6">
+                Three company objectives per quarter. No more.
+              </p>
+              <Okrs quarters={quarters} call={call} meetings={meetings} items={items} />
+            </section>
+          </div>
+        )}
+        {view === "Money" && (
+          <Money
+            months={months} thresholds={thresholds} tests={tests} meetings={meetings}
+            weeks={weeks} quarter={current} items={items} call={call}
           />
         )}
-        {view === "Roadmap12" && <TwelveMonth />}
-        {view === "QuarterlyOKR" && <Okrs quarters={quarters} call={call} meetings={meetings} items={items} />}
-        {view === "Money" && <Money months={months} thresholds={thresholds} tests={tests} meetings={meetings} call={call} />}
-        {view === "Meetings" && <MeetingsView meetings={meetings} months={months} thresholds={thresholds} weeks={weeks} call={call} quarter={current} items={items} />}
+        {view === "Meetings" && <MeetingsView meetings={meetings} call={call} onOpenMoney={() => setView("Money")} />}
         {view === "Systems" && <Systems data={systems} call={call} />}
         {view === "Team" && <Team people={people} items={items} call={call} onDone={load} />}
 
@@ -759,7 +793,7 @@ export default function RoadmapPage() {
           </div>
         )}
 
-        {!["QuarterlyOKR", "Money", "Meetings", "Systems", "Team", "ThisWeek"].includes(view) && (
+        {!["Plan", "Money", "Meetings", "Systems", "Team", "ThisWeek"].includes(view) && (
           <>
             {view === "RevenueProject" && (
               <div className="mb-8">
@@ -844,7 +878,7 @@ function NumbersCard({
     return (
       <Panel className="board-tight shrink-0">
         <CardHead title="This week's numbers" sub="No Monday card yet" value="—" />
-        <Button onClick={() => onOpen("Meetings")}>Go to meetings</Button>
+        <Button onClick={() => onOpen("Money")}>Start the week on Money</Button>
       </Panel>
     );
   }
@@ -874,10 +908,10 @@ function NumbersCard({
       </SaveGroup>
 
       <button
-        onClick={() => onOpen("Meetings")}
+        onClick={() => onOpen("Money")}
         className="mt-3 text-[14px] text-[var(--muted)] hover:text-[var(--text)] min-h-[40px]"
       >
-        {filled === FIELDS.length ? "Open the full card →" : `The other ${FIELDS.length - filled} on the full card →`}
+        {filled === FIELDS.length ? "Open the full card on Money →" : `The other ${FIELDS.length - filled} on Money →`}
       </button>
     </Fold>
   );
@@ -1198,10 +1232,10 @@ function ToursCard({ board, onOpen }: { board: Board; onOpen: (v: View) => void 
       <Panel className="h-full min-h-0 board-tight overflow-hidden">
         <CardHead title="Tours" sub="Nothing to draw yet" value="—" />
         <p className="text-[15px] leading-relaxed text-[var(--muted)] mb-4">
-          Leads and tours go on the Monday card. The funnel appears the moment
-          there are numbers on one.
+          Leads and tours go on the week&apos;s card, on Money. The funnel appears
+          the moment there are numbers on one.
         </p>
-        <Button arrow onClick={() => onOpen("Meetings")}>Open the Monday card</Button>
+        <Button arrow onClick={() => onOpen("Money")}>Open the week on Money</Button>
       </Panel>
     );
   }
@@ -1226,10 +1260,10 @@ function ToursCard({ board, onOpen }: { board: Board; onOpen: (v: View) => void 
       </p>
       </div>
       <button
-        onClick={() => onOpen("Meetings")}
+        onClick={() => onOpen("Money")}
         className="shrink-0 pt-2 text-left text-[13px] text-[var(--muted)] hover:text-[var(--text)] min-h-[36px]"
       >
-        Open the Monday card →
+        Open the week on Money →
       </button>
     </Panel>
   );
@@ -1641,10 +1675,186 @@ function Okrs({
   );
 }
 
+/** How many reporting weeks a month has: its Sundays, since a Monday card's
+ *  covered week belongs to the month its Sunday falls in (see lib/rollup). */
+function weeksInMonth(key: string): number {
+  const [y, mo] = key.split("-").map(Number);
+  let n = 0;
+  for (let d = new Date(Date.UTC(y, mo - 1, 1)); d.getUTCMonth() === mo - 1; d = new Date(d.getTime() + 86400000)) {
+    if (d.getUTCDay() === 0) n++;
+  }
+  return n;
+}
+
+/**
+ * The week table: one row per Monday card, entered here.
+ *
+ * The numbers were always stored on the Meeting row — keyed by week, which is
+ * the right model — but the only door to them was Meetings, which is why
+ * "meetings has revenue in it" felt jumbled. Money owns the door now; the
+ * rows do not move.
+ *
+ * The weekly target is derived, monthly ÷ weeks in that month, and the
+ * derivation is printed rather than silent so a wrong-looking number can be
+ * argued with. If explicit weekly targets are ever wanted, this is the one
+ * place to swap them in.
+ */
+function WeekByWeek({
+  weekly, months, thresholds, meetings, weeks, quarter, items, call,
+}: {
+  weekly: Meeting[]; months: Month[]; thresholds: Threshold[]; meetings: Meeting[];
+  weeks: Week[]; quarter?: Quarter; items: Item[];
+  call: (u: string, m: string, b?: unknown) => Promise<boolean>;
+}) {
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [flowFor, setFlowFor] = useState<string | null>(null);
+
+  const rows = [...weekly].sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
+
+  // This week's Monday, so entry never waits on visiting Meetings first.
+  const due = occurrenceToLog("MondayBusiness", localToday());
+  const dueLogged = rows.some((m) => m.date.slice(0, 10) === due);
+
+  const num = (v: number | null) => (v == null ? "" : String(v));
+
+  return (
+    <section>
+      <Eyebrow>Week by week</Eyebrow>
+      <p className="text-[16px] leading-relaxed text-[var(--muted)] mb-6">
+        Cash in and spend out for each week, against a target derived from the month. Enter the
+        numbers here — they live on the week&apos;s Monday card, so the meeting sees the same figures.
+      </p>
+
+      {!dueLogged && (
+        <div className="mb-6">
+          <Button kind="solid" arrow onClick={() => call("/api/meetings", "POST", { kind: "MondayBusiness", date: due })}>
+            Start the week of {pretty(due)}
+          </Button>
+        </div>
+      )}
+
+      {rows.length === 0 ? (
+        <Empty>No weeks logged yet. Start one and the table begins.</Empty>
+      ) : (
+        <div className="divide-y divide-white/10 border-y border-white/10">
+          {rows.map((m) => {
+            const end = coveredWeekEnd(m.date);
+            const key = `${end.getUTCFullYear()}-${String(end.getUTCMonth() + 1).padStart(2, "0")}`;
+            const month = months.find((x) => x.key === key) ?? null;
+            const perWeek = month ? month.target / weeksInMonth(key) : null;
+            const hit = m.cashCollected != null && perWeek != null ? m.cashCollected >= perWeek : null;
+            const net = m.cashCollected != null && m.expenses != null ? m.cashCollected - m.expenses : null;
+            const open = openId === m.id;
+            return (
+              <div key={m.id} className="py-4">
+                <button onClick={() => setOpenId(open ? null : m.id)} className="w-full text-left">
+                  <span className="flex items-baseline justify-between gap-4">
+                    <span className="text-[16px] tabular-nums">{coveringWeek(m.date)}</span>
+                    <span className={`shrink-0 text-[16px] tabular-nums ${
+                      hit == null ? "text-[var(--muted-3)]" : hit ? "text-[var(--ok)]" : "text-[var(--alert)]"
+                    }`}>
+                      {m.cashCollected == null ? "not filled in"
+                        : hit == null ? `${dollars(m.cashCollected)} in`
+                        : hit ? `${dollars(m.cashCollected)} in · hit`
+                        : `${dollars(m.cashCollected)} in · ${dollars(perWeek! - m.cashCollected)} short`}
+                    </span>
+                  </span>
+                  <span className="mt-1 block text-[14px] text-[var(--muted-3)] tabular-nums">
+                    {perWeek != null && month
+                      ? <>target {dollars(perWeek)} — {dollars(month.target)} monthly ÷ {weeksInMonth(key)} weeks</>
+                      : "no monthly target set"}
+                    {m.expenses != null && <> · {dollars(m.expenses)} spent</>}
+                    {net != null && <> · {net < 0 ? `−${dollars(-net)}` : dollars(net)} net</>}
+                  </span>
+                </button>
+
+                <SaveGroup className="mt-3">
+                  <div className="grid grid-cols-2 gap-3 max-w-[440px]">
+                    <Field label="Cash in" type="number" value={num(m.cashCollected)}
+                      onSave={(v) => call(`/api/meetings/${m.id}`, "PATCH", { cashCollected: v })} />
+                    <Field label="Spend" type="number" value={num(m.expenses)}
+                      onSave={(v) => call(`/api/meetings/${m.id}`, "PATCH", { expenses: v })} />
+                  </div>
+                </SaveGroup>
+
+                {open && (
+                  <div className="mt-6">
+                    {flowFor === m.id ? (
+                      <div className="mb-8 rounded-[12px] border border-[var(--line)] p-5">
+                        <MondayFlow
+                          meeting={m as unknown as Record<string, unknown> & { id: string }}
+                          onSave={async (field, value) => {
+                            await call(`/api/meetings/${m.id}`, "PATCH", { [field]: value });
+                          }}
+                          onDone={() => setFlowFor(null)}
+                          measured={(quarter?.objectives ?? [])
+                            .flatMap((o) => o.keyResults)
+                            .map((k) => {
+                              const mm = measureKr(k.text, cardsFor(meetings), countsFrom(items, meetings.length));
+                              return mm
+                                ? { id: k.id, label: k.label, text: k.text, current: k.score, suggested: mm.score, value: mm.value }
+                                : null;
+                            })
+                            .filter((x): x is NonNullable<typeof x> => x !== null)}
+                          triggers={Object.entries(
+                            gradeAll(m, pacePctAt(m.date, months, meetings, weeks))
+                          ).map(([metric, g]) => ({
+                            metric,
+                            state: (g.card ?? "unknown") as "green" | "yellow" | "red" | "unknown",
+                            reading: g.display,
+                          }))}
+                        />
+                      </div>
+                    ) : (
+                      <div className="mb-7">
+                        <Button onClick={() => setFlowFor(m.id)}>Run the questions</Button>
+                      </div>
+                    )}
+
+                    <Cards
+                      meeting={m}
+                      thresholds={thresholds}
+                      pacePct={pacePctAt(m.date, months, meetings, weeks)}
+                    />
+                    <Eyebrow>Full scorecard</Eyebrow>
+                    <SaveGroup>
+                      <div className="grid gap-4 sm:grid-cols-2 mb-6">
+                        {SCORECARD.map(([key2, label]) => (
+                          <Field
+                            key={String(key2)} label={label} type="number"
+                            value={m[key2] === null ? "" : String(m[key2])}
+                            onSave={(v) => call(`/api/meetings/${m.id}`, "PATCH", { [key2]: v })}
+                          />
+                        ))}
+                      </div>
+                      <Field
+                        label="Decisions and blockers" multiline value={m.decisions}
+                        onSave={(v) => call(`/api/meetings/${m.id}`, "PATCH", { decisions: v })}
+                      />
+                    </SaveGroup>
+                  </div>
+                )}
+
+                <button
+                  onClick={() => setOpenId(open ? null : m.id)}
+                  className="mt-2 text-[13px] text-[var(--muted)] hover:text-[var(--text)] min-h-[36px]"
+                >
+                  {open ? "Close the scorecard" : "Full scorecard →"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function Money({
-  months, thresholds, tests, meetings, call,
+  months, thresholds, tests, meetings, weeks, quarter, items, call,
 }: {
   months: Month[]; thresholds: Threshold[]; tests: Test[]; meetings: Meeting[];
+  weeks: Week[]; quarter?: Quarter; items: Item[];
   call: (u: string, m: string, b?: unknown) => Promise<boolean>;
 }) {
   // Actuals come from the Monday cards. Nothing here is typed twice.
@@ -1666,7 +1876,12 @@ function Money({
 
   return (
     <>
-      <section>
+      <WeekByWeek
+        weekly={weekly} months={months} thresholds={thresholds} meetings={meetings}
+        weeks={weeks} quarter={quarter} items={items} call={call}
+      />
+
+      <section className="mt-12">
         <Eyebrow>Target against actual</Eyebrow>
         <p className="text-[16px] leading-relaxed text-[var(--muted)] mb-6">
           $250K cumulative is the floor; manage toward $275K so one weak month does not break the goal.
@@ -1808,16 +2023,17 @@ function Cards({
   );
 }
 
+/**
+ * Meetings run meetings: agendas, prep briefs, decisions. The scorecard moved
+ * to Money — one door for the numbers, which was the whole complaint.
+ */
 function MeetingsView({
-  meetings, months, thresholds, weeks, call, quarter, items,
+  meetings, call, onOpenMoney,
 }: {
-  meetings: Meeting[]; months: Month[]; thresholds: Threshold[]; weeks: Week[];
+  meetings: Meeting[];
   call: (u: string, m: string, b?: unknown) => Promise<boolean>;
-  quarter?: Quarter;
-  items: Item[];
+  onOpenMoney: () => void;
 }) {
-  // Which Monday, if any, is being walked through as questions.
-  const [flowFor, setFlowFor] = useState<string | null>(null);
   const [openKind, setOpenKind] = useState<string | null>("MondayBusiness");
   // Past occurrences stay folded away. Every Monday has its own row already,
   // but they all rendered in one column, so this week's blank scorecard sat
@@ -1905,63 +2121,19 @@ function MeetingsView({
                         </button>
                       </div>
 
-                      {/* Monday as questions rather than a grid of boxes, and
-                          the one place the meeting, the OKRs and the thresholds
-                          are shown arguing with each other. */}
-                      {def.scorecard && def.kind === "MondayBusiness" && (
-                        flowFor === m.id ? (
-                          <div className="mb-8 rounded-[12px] border border-[var(--line)] p-5">
-                            <MondayFlow
-                              meeting={m as unknown as Record<string, unknown> & { id: string }}
-                              onSave={async (field, value) => {
-                                await call(`/api/meetings/${m.id}`, "PATCH", { [field]: value });
-                              }}
-                              onDone={() => setFlowFor(null)}
-                              measured={(quarter?.objectives ?? [])
-                                .flatMap((o) => o.keyResults)
-                                .map((k) => {
-                                  const mm = measureKr(k.text, cardsFor(meetings), countsFrom(items, meetings.length));
-                                  return mm
-                                    ? { id: k.id, label: k.label, text: k.text, current: k.score, suggested: mm.score, value: mm.value }
-                                    : null;
-                                })
-                                .filter((x): x is NonNullable<typeof x> => x !== null)}
-                              triggers={Object.entries(
-                                gradeAll(m, pacePctAt(m.date, months, meetings, weeks))
-                              ).map(([metric, g]) => ({
-                                metric,
-                                state: (g.card ?? "unknown") as "green" | "yellow" | "red" | "unknown",
-                                reading: g.display,
-                              }))}
-                            />
-                          </div>
-                        ) : (
-                          <div className="mb-7">
-                            <Button onClick={() => setFlowFor(m.id)}>Run the questions</Button>
-                          </div>
-                        )
-                      )}
-
                       {def.kind === "MondayMonthly" ? (
                         <MonthlyRollup meeting={m} weekly={meetings.filter((x) => x.kind === "MondayBusiness")} call={call} />
                       ) : def.scorecard ? (
                         <>
-                          <Cards
-                            meeting={m}
-                            thresholds={thresholds}
-                            pacePct={pacePctAt(m.date, months, meetings, weeks)}
-                          />
-                          <Eyebrow>Scorecard</Eyebrow>
+                          {/* The numbers live on Money now — one door. This
+                              keeps the meeting's own record: what was decided. */}
+                          <button
+                            onClick={onOpenMoney}
+                            className="mb-6 text-[15px] text-[var(--muted)] hover:text-[var(--text)] min-h-[44px]"
+                          >
+                            The scorecard for this week is on Money →
+                          </button>
                           <SaveGroup>
-                          <div className="grid gap-4 sm:grid-cols-2 mb-6">
-                            {SCORECARD.map(([key, label]) => (
-                              <Field
-                                key={String(key)} label={label} type="number"
-                                value={m[key] === null ? "" : String(m[key])}
-                                onSave={(v) => call(`/api/meetings/${m.id}`, "PATCH", { [key]: v })}
-                              />
-                            ))}
-                          </div>
                           <Field
                             label="Decisions and blockers" multiline value={m.decisions}
                             onSave={(v) => call(`/api/meetings/${m.id}`, "PATCH", { decisions: v })}

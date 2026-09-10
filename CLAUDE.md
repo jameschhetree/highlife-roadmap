@@ -6,7 +6,7 @@ Next.js 16 + Tailwind v4 + Prisma 7 + Postgres app.
 Live at https://highlife-roadmap.vercel.app
 
 ## Stack
-- Next.js 16.2.6 (App Router)
+- Next.js 16.3.4 (App Router)
 - Tailwind CSS v4 with @tailwindcss/postcss
 - Prisma 7 with @prisma/adapter-pg
 - PostgreSQL via Prisma Postgres (Vercel marketplace)
@@ -43,7 +43,9 @@ package into dependencies to work around it can drop the pin — those pins brea
 Vercel, which builds on Linux.
 
 ## Key files
-- src/app/page.tsx - Roadmap UI, eight views
+- src/app/page.tsx - Roadmap UI. Three primary tabs (This week, Money, Plan)
+  plus a More fold holding the rest. Weekly numbers are entered on Money;
+  they live on Meeting rows keyed by week.
 - src/lib/items.ts - Validation shared by the API and the chat assistant
 - src/app/api/roadmap/route.ts - GET everything the board needs
 - src/app/api/items/ - CRUD
