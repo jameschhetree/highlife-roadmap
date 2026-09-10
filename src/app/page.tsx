@@ -1787,10 +1787,12 @@ function WeekByWeek({
                 </button>
 
                 <SaveGroup className="mt-3">
+                  {/* "Cash collected", the doc's words: pipeline is not revenue,
+                      invoices are not revenue. The label carries the rule. */}
                   <div className="grid grid-cols-2 gap-3 max-w-[440px]">
-                    <Field label="Cash in" type="number" value={num(m.cashCollected)}
+                    <Field label="Cash collected" type="number" value={num(m.cashCollected)}
                       onSave={(v) => call(`/api/meetings/${m.id}`, "PATCH", { cashCollected: v })} />
-                    <Field label="Spend" type="number" value={num(m.expenses)}
+                    <Field label="Spent this week" type="number" value={num(m.expenses)}
                       onSave={(v) => call(`/api/meetings/${m.id}`, "PATCH", { expenses: v })} />
                   </div>
                 </SaveGroup>
