@@ -20,11 +20,16 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${geistSans.variable} h-full antialiased`}>
       <script
-          // Applied before first paint so a light-mode user never sees a black
-          // flash on load.
+          // Applied before first paint so neither theme flashes on load.
+          //
+          // Only a stored choice sets data-theme. With nothing stored the
+          // attribute stays off and the CSS falls through to
+          // prefers-color-scheme, which is how the roadmap document behaved:
+          // light by default, dark if the system is dark. This used to hard-code
+          // dark, which meant the system preference could never win.
           dangerouslySetInnerHTML={{
             __html:
-              "try{var t=localStorage.getItem('hl_theme');document.documentElement.dataset.theme=t==='light'?'light':'dark'}catch(e){document.documentElement.dataset.theme='dark'}",
+              "try{var t=localStorage.getItem('hl_theme');if(t==='light'||t==='dark'){document.documentElement.dataset.theme=t}}catch(e){}",
           }}
         />
         <body className="min-h-full flex flex-col">

@@ -14,11 +14,12 @@ test("each weekday maps to the job the plan gives it", () => {
 });
 
 test("the weekday is James's, not the server's", () => {
-  // 01:00 UTC Monday is still Sunday evening in New York, and Sunday is when
-  // the brand meeting and the content shoot happen.
+  // 01:00 UTC Monday is still Sunday evening in New York. The timezone is the
+  // point of this test; the Sunday brand meeting was scrapped on 24 Aug 2026,
+  // so Sunday now points forward at Monday's prep.
   const g = guideFor(new Date("2026-08-17T01:00:00Z"));
   expect(g.weekday).toBe("Sunday");
-  expect(g.meetingKind).toBe("SundayBrand");
+  expect(g.meetingKind).toBe("MondayBusiness");
 });
 
 test("meeting days point at a meeting, execution days do not", () => {

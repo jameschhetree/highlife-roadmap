@@ -9,100 +9,121 @@
   Tokens lifted from that build's tailwind config so the two apps look like one
   company rather than two projects that happen to share a name.
 */
+/*
+  The palette from the roadmap HTML James sent back on 24 Aug 2026.
+
+  Light is the default and dark follows the system, which is the way that
+  document worked. The previous build was dark-only with a manual switch, so the
+  old `data-theme` hooks are kept below and still win when he presses Light or
+  Dark — the system preference is the starting point, not a cage.
+
+  Token names are unchanged on purpose. Every component already reads --card,
+  --line and --muted, so remapping here restyles the whole app rather than
+  needing each view edited.
+*/
 :root {
-  --bg: #000000;
-  --surface: #0a0a0a;
-  --card: #141414;
-  --card-2: #1a1a1a;
-  --line: #1f1f1f;
-  --line-2: #2a2a2a;
-  --text: #ffffff;
-  --muted: #a0a0a0;
-  --muted-2: #888888;
-  --muted-3: #666666;
+  --bg: #faf9f7;
+  --surface: #f2f1ed;
+  --card: #ffffff;
+  --card-2: #f4f3f0;
+  --line: rgba(0, 0, 0, 0.1);
+  --line-2: rgba(0, 0, 0, 0.14);
+  --text: #1a1a1a;
+  --muted: #555555;
+  --muted-2: #777777;
+  --muted-3: #999999;
+  --r: 12px;
+  --rs: 8px;
+  /* SVG needs real colours, not alpha-on-nothing. The road was drawn in
+     translucent white, which is invisible on a white page. */
+  --road: #e4e3df;
+  --road-line: #b5b4ae;
+  --marker: #ffffff;
+  --marker-line: rgba(0, 0, 0, 0.28);
+  --track: rgba(0, 0, 0, 0.10);
+  --on-accent: #ffffff;
 }
 
-/*
-  Light mode. The dashboard's own light palette, so the two apps still match in
-  either theme. Everything below is driven by these variables rather than by
-  hard-coded colours, which is why the switch is a single attribute.
-*/
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1a1a1a;
+    --surface: #242424;
+    --card: #1a1a1a;
+    --card-2: #242424;
+    --line: rgba(255, 255, 255, 0.12);
+    --line-2: rgba(255, 255, 255, 0.18);
+    --text: #f0f0f0;
+    --muted: #aaaaaa;
+    --muted-2: #8a8a8a;
+    --muted-3: #666666;
+    --road: #2e2e2e;
+    --road-line: #4a4a4a;
+    --marker: #101014;
+    --marker-line: rgba(255, 255, 255, 0.28);
+    --track: rgba(255, 255, 255, 0.10);
+    --on-accent: #0d0d10;
+  }
+}
+
+/* Explicit choice beats the system preference, in both directions. */
 :root[data-theme="light"] {
-  --bg: #e8e8e8;
-  --surface: #f0f0f0;
-  --card: #f8f8f8;
-  --card-2: #fafafa;
-  --line: #d5d5d5;
-  --line-2: #cccccc;
+  --road: #e4e3df;
+  --road-line: #b8b8b4;
+  --marker: #ffffff;
+  --marker-line: rgba(0, 0, 0, 0.28);
+  --track: rgba(0, 0, 0, 0.10);
+  --on-accent: #ffffff;
+  --bg: #faf9f7;
+  --surface: #f2f1ed;
+  --card: #ffffff;
+  --card-2: #f4f3f0;
+  --line: rgba(0, 0, 0, 0.1);
+  --line-2: rgba(0, 0, 0, 0.14);
   --text: #1a1a1a;
-  --muted: #666666;
+  --muted: #555555;
   --muted-2: #777777;
-  --muted-3: #888888;
+  --muted-3: #999999;
+}
+
+:root[data-theme="dark"] {
+  --road: #2e2e2e;
+  --road-line: #4a4a4a;
+  --marker: #101014;
+  --marker-line: rgba(255, 255, 255, 0.28);
+  --track: rgba(255, 255, 255, 0.10);
+  --on-accent: #0d0d10;
+  --bg: #1a1a1a;
+  --surface: #242424;
+  --card: #1a1a1a;
+  --card-2: #242424;
+  --line: rgba(255, 255, 255, 0.12);
+  --line-2: rgba(255, 255, 255, 0.18);
+  --text: #f0f0f0;
+  --muted: #aaaaaa;
+  --muted-2: #8a8a8a;
+  --muted-3: #666666;
 }
 
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+  /* The document's stack, not Geist. Its whole look rests on the system face. */
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
-  font-size: 17px;
+  /* 15px, not the document's 13px. Jaco called 14px unreadable on a phone and
+     that is why this app moved to 17px in the first place; going all the way
+     back would walk straight into a complaint he already made. Everything else
+     about the design is the document's. */
+  font-size: 15px;
   line-height: 1.55;
   position: relative;
   overflow-x: hidden;
 }
 
-/* A very slow drift behind the glass. Without something moving underneath it,
-   a blur is just a grey box — which is what the cards were: the backdrop-filter
-   was doing its job over a flat black field, so there was nothing to refract
-   and the glass read as a slightly lighter rectangle.
-   Brighter and larger now, and off-centre, so the panels catch a gradient
-   rather than an even wash. Still white on black: the palette is the one thing
-   about this that was already right. */
-body::before {
-  content: "";
-  position: fixed;
-  inset: -50%;
-  z-index: -1;
-  pointer-events: none;
-  background:
-    radial-gradient(circle at 18% 22%, rgba(255, 255, 255, 0.10) 0%, transparent 42%),
-    radial-gradient(circle at 82% 72%, rgba(255, 255, 255, 0.075) 0%, transparent 44%),
-    radial-gradient(circle at 62% 12%, rgba(255, 255, 255, 0.045) 0%, transparent 38%),
-    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.025) 0%, transparent 62%);
-  animation: drift 26s ease-in-out infinite;
-}
 
-/* Grain, at the very edge of visible.
-   Large flat gradients band on an OLED panel, and the banding is what makes a
-   dark gradient look cheap. A little noise over the top breaks the steps up.
-   Inline SVG rather than an image file: one fewer request, and it cannot go
-   missing. */
-body::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  opacity: 0.035;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
-}
 
-/* On light, glass has to darken what is behind it rather than lighten it. */
-:root[data-theme="light"] body::before {
-  background:
-    radial-gradient(circle at 22% 28%, rgba(0, 0, 0, 0.035) 0%, transparent 45%),
-    radial-gradient(circle at 78% 68%, rgba(0, 0, 0, 0.025) 0%, transparent 45%),
-    radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0.015) 0%, transparent 60%);
-}
 
-@keyframes drift {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  50%      { transform: translate(2%, -2%) scale(1.06); }
-}
 
-@media (prefers-reduced-motion: reduce) {
-  body::before { animation: none; }
-}
 
 @layer utilities {
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -138,77 +159,31 @@ body::after {
   frosting — it pulls the colour out of whatever is behind rather than only
   smearing it.
 */
+/* Flat card. The document has no glass in it: a hairline border, a 12px
+   radius and a background that is either the page or one step off it. The
+   blur, the inset highlights and the drop shadow all went with it. */
 .bezel {
   position: relative;
-  background:
-    linear-gradient(135deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.035) 46%, rgba(255,255,255,0.055) 100%);
-  border: 1px solid rgba(255,255,255,0.11);
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.16),
-    inset 0 -1px 0 rgba(0,0,0,0.35),
-    0 14px 38px -14px rgba(0,0,0,0.95);
-  backdrop-filter: blur(24px) saturate(150%);
-  -webkit-backdrop-filter: blur(24px) saturate(150%);
-}
-
-.bezel::before {
-  content: "";
-  position: absolute;
-  inset: 1px;
-  border-radius: inherit;
-  border: 1px solid rgba(255,255,255,0.045);
-  pointer-events: none;
+  background: var(--card);
+  border: 1px solid var(--line);
 }
 
 .pill-nav {
-  background: rgba(10,10,10,0.72);
-  border: 1px solid rgba(255,255,255,0.10);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), 0 16px 40px -16px rgba(0,0,0,1);
-  backdrop-filter: blur(24px) saturate(140%);
-  -webkit-backdrop-filter: blur(24px) saturate(140%);
+  background: var(--card);
+  border: 1px solid var(--line);
   border-radius: 999px;
 }
 
 .glass {
-  background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%);
-  border: 1px solid rgba(255,255,255,0.1);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: var(--card-2);
+  border: 1px solid var(--line);
 }
 
 .glass-soft {
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.06);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: var(--card-2);
+  border: 1px solid var(--line);
 }
 
-:root[data-theme="light"] .bezel {
-  background: linear-gradient(135deg, rgba(255,255,255,0.92) 0%, rgba(255,255,255,0.62) 100%);
-  border: 1px solid rgba(0,0,0,0.09);
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.95),
-    0 12px 30px -16px rgba(0,0,0,0.38);
-}
-/* On light, an inner white ring is invisible; the depth has to come from a
-   faint dark line instead. */
-:root[data-theme="light"] .bezel::before {
-  border-color: rgba(0,0,0,0.035);
-}
-:root[data-theme="light"] body::after { opacity: 0.02; }
-:root[data-theme="light"] .pill-nav {
-  background: rgba(255,255,255,0.78);
-  border: 1px solid rgba(0,0,0,0.09);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), 0 14px 32px -18px rgba(0,0,0,0.4);
-}
-:root[data-theme="light"] .glass {
-  background: linear-gradient(135deg, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0.6) 100%);
-  border: 1px solid rgba(0,0,0,0.08);
-}
-:root[data-theme="light"] .glass-soft {
-  background: rgba(0,0,0,0.03);
-  border: 1px solid rgba(0,0,0,0.06);
-}
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -383,4 +358,36 @@ select option { background: #141414; color: #ffffff; }
     -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent 100%);
     mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent 100%);
   }
+}
+
+/*
+  Dark-only leftovers.
+
+  Roughly sixty-five places write border-white/10 or bg-white/[0.04] directly,
+  from when this app only had a black background. A ten percent white border is
+  invisible on a white page, so the whole layout lost its divisions the moment
+  light became the default.
+
+  Remapped here onto the theme tokens rather than edited out of sixty-five
+  files. The :root prefix is only there to beat Tailwind's own utility on
+  specificity without reaching for !important.
+*/
+:root .border-white\/10,
+:root .border-white\/5 { border-color: var(--line); }
+:root .border-white\/20,
+:root .border-white\/40 { border-color: var(--line-2); }
+:root .divide-white\/10 > :not([hidden]) ~ :not([hidden]) { border-color: var(--line); }
+:root .bg-white\/\[0\.04\],
+:root .bg-white\/5 { background-color: var(--card-2); }
+:root .bg-white\/10 { background-color: var(--track); }
+
+/* The road's stops are focusable so they work from a keyboard, but the default
+   focus rectangle draws a blue box around a circular marker. The component
+   already draws its own ring for the selected stop, so this replaces the box
+   with a visible-only-on-keyboard version of that. */
+svg [role="button"]:focus { outline: none; }
+svg [role="button"]:focus-visible circle:first-of-type {
+  stroke: var(--text);
+  stroke-width: 1.5;
+  fill: transparent;
 }

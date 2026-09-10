@@ -34,9 +34,13 @@ From the plan, not invented here — change them only if the plan changes:
   or contact model and the chat prompt refuses to create one.
 
 ## Install note
-`~/.npmrc` sets `optional=false`, which skips the platform-native
-lightningcss/oxide binaries and makes the build fail on a missing module.
-Install with `npm install --include=optional`.
+Fixed 2026-08-24. `~/.npmrc` used to set `optional=false`, which skipped the
+platform-native lightningcss/oxide binaries and made the build fail on a missing
+module. That line is gone, so a plain `npm install` now works.
+
+It was a machine-wide setting, so any project that pinned a `-darwin-arm64`
+package into dependencies to work around it can drop the pin — those pins break
+Vercel, which builds on Linux.
 
 ## Key files
 - src/app/page.tsx - Roadmap UI, eight views

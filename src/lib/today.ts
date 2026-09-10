@@ -68,14 +68,17 @@ const GUIDES: Record<number, DayGuide> = {
     goTo: "ContentCalendar",
     goToLabel: "Content cadence",
   },
+  // The Sunday brand meeting was scrapped on 24 Aug 2026. The cadence is now
+  // Monday business and Wednesday team, so Sunday points at Monday's prep
+  // rather than at a meeting that no longer happens.
   0: {
     weekday: "Sunday",
-    headline: "Brand meeting, 4:00 PM — content first",
+    headline: "No meeting — set up Monday",
     detail:
-      "Shoot before you meet: the weekly podcast and any commercial batches. Then rank Music, Media and Merch for the week and decide what is next. Write the prep brief first so the room starts on decisions.",
+      "Shoot what needs shooting and get last week's numbers somewhere you can read them. Monday starts on the scoreboard, so the only Sunday job is making sure those figures exist before 10:00 AM.",
     goTo: "Meetings",
-    goToLabel: "Write the Sunday brief",
-    meetingKind: "SundayBrand",
+    goToLabel: "Open Monday business",
+    meetingKind: "MondayBusiness",
   },
 };
 

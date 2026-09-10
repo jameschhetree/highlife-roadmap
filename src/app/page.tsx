@@ -12,6 +12,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import SprintRoad from "@/components/SprintRoad";
+import MondayFlow from "@/components/MondayFlow";
+import TwelveMonth from "@/components/TwelveMonth";
+import Dashboard from "@/components/Dashboard";
+import { Dial } from "@/components/OkrDial";
 import { isAdminAuthed } from "@/lib/admin-auth";
 import { Eyebrow, Empty, Field, Choice, Button, Tick, Tag, Reveal, Panel, SaveGroup, Fold, BLUR } from "@/components/ui";
 import { gradeAll, type Card } from "@/lib/grade";
@@ -26,6 +31,7 @@ import { suggest } from "@/lib/priorities";
 import { rollUp, collectedByMonth, monthUnderReview } from "@/lib/rollup";
 import { occurrenceToLog, nextOccurrence, pretty, localToday } from "@/lib/meetingDates";
 import { measureKr } from "@/lib/measure";
+import { countsFrom, cardsFor } from "@/lib/counts";
 import { group } from "@/lib/group";
 import { ownsIt, namesIn } from "@/lib/owner";
 import { formatStoredDate } from "@/lib/days";
@@ -33,8 +39,9 @@ import { pace, monthKeyOf, funnel } from "@/lib/pace";
 import { Curve, PaceBar, Funnel, Bars, type Point } from "@/components/chart";
 
 type View =
-  | "ThisWeek" | "Meetings" | "QuarterlyOKR" | "Money" | "RevenueProject"
-  | "ContentCalendar" | "Event" | "SOP" | "Systems" | "Team" | "Blocked" | "DecisionLog";
+  | "Dashboard" | "ThisWeek" | "Roadmap12" | "Meetings" | "QuarterlyOKR" | "Money"
+  | "RevenueProject" | "ContentCalendar" | "Event" | "SOP" | "Systems" | "Team"
+  | "Blocked" | "DecisionLog";
 
 type Item = {
   id: string; title: string; owner: string; pillar: string; view: string;
@@ -76,7 +83,9 @@ const TABS: { key: View; label: string; blurb: string; icon: (p: { className?: s
   // Ordered the way the plan runs, not alphabetically: today's work, then the
   // meeting that sets it, then the money it serves, then the quarter it rolls
   // up to, then the systems that watch it, then the working surfaces.
+  { icon: IconTarget, key: "Dashboard", label: "Dashboard", blurb: "Where the whole thing stands, in one screen." },
   { icon: IconWeek, key: "ThisWeek", label: "This week", blurb: "Commitments due before next Monday. One owner, one date." },
+  { icon: IconSystems, key: "Roadmap12", label: "Roadmap", blurb: "The twelve month plan. Four phases, every task and its steps." },
   { icon: IconMeeting, key: "Meetings", label: "Meetings", blurb: "Monday carries the scorecard. Wednesday and Sunday get a prep brief." },
   { icon: IconMoney, key: "Money", label: "Money", blurb: "The monthly path to $250K, and the Monday thresholds." },
   { icon: IconTarget, key: "QuarterlyOKR", label: "OKRs", blurb: "Three company objectives per quarter. No more." },
@@ -137,16 +146,6 @@ const MEETINGS: {
       { item: "Training topic or SOP", mins: "15 min", detail: "The SOP of the week, taught rather than circulated." },
       { item: "Intern assignments", mins: "10 min", detail: "Assignments, engineer accountability, team responsibilities." },
       { item: "Announcements", mins: "5 min", detail: "Culture, questions, anything outstanding." },
-    ],
-  },
-  {
-    kind: "SundayBrand", label: "Sunday brand", when: "Sundays, 4:00 PM · 45–60 min", scorecard: false,
-    agenda: [
-      { item: "Rank the pillars", detail: "Music, Media and Merch, one to three for the coming week, based on the quarter plan." },
-      { item: "Content bank", detail: "Review what is already shot and unpublished." },
-      { item: "Creative priorities", detail: "Decide the next HL Podcast, freestyle, commercial or campaign." },
-      { item: "The monthly event", detail: "Review the upcoming event and its primary business objective." },
-      { item: "Decide and assign", detail: "Make the creative decisions, give them owners, then stop before it becomes a second Monday." },
     ],
   },
 ];
@@ -211,7 +210,7 @@ function coveringWeek(meetingDate: string): string {
 export default function RoadmapPage() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
-  const [view, setView] = useState<View>("ThisWeek");
+  const [view, setView] = useState<View>("Dashboard");
   const [who, setWho] = useState("Everyone");
   const [quarters, setQuarters] = useState<Quarter[]>([]);
   const [items, setItems] = useState<Item[]>([]);
@@ -479,9 +478,29 @@ export default function RoadmapPage() {
           </div>
         )}
 
+        {view === "Dashboard" && (
+          <Dashboard
+            weeks={weeks}
+            currentWeek={currentWeek?.week}
+            objectives={current?.objectives ?? []}
+            openCommitments={openThisWeek}
+            /* Month's cash comes from the Monday scorecards, not the month row -
+               the month's own collected field is still null and the numbers he
+               actually types every Monday are the live ones. */
+            cashThisMonth={(() => {
+              const key = new Date().toISOString().slice(0, 7);
+              return meetings
+                .filter((m) => m.date.slice(0, 7) === key && m.cashCollected != null)
+                .reduce((n, m) => n + (m.cashCollected ?? 0), 0);
+            })()}
+            cashTarget={months.find((m) => m.key === new Date().toISOString().slice(0, 7))?.target ?? null}
+            onGo={(v) => setView(v as View)}
+          />
+        )}
+        {view === "Roadmap12" && <TwelveMonth />}
         {view === "QuarterlyOKR" && <Okrs quarters={quarters} call={call} meetings={meetings} items={items} />}
         {view === "Money" && <Money months={months} thresholds={thresholds} tests={tests} meetings={meetings} call={call} />}
-        {view === "Meetings" && <MeetingsView meetings={meetings} months={months} thresholds={thresholds} weeks={weeks} call={call} />}
+        {view === "Meetings" && <MeetingsView meetings={meetings} months={months} thresholds={thresholds} weeks={weeks} call={call} quarter={current} items={items} />}
         {view === "Systems" && <Systems data={systems} call={call} />}
         {view === "Team" && <Team people={people} items={items} call={call} onDone={load} />}
 
@@ -632,6 +651,12 @@ export default function RoadmapPage() {
 
               {weeks.length > 0 && (
                 <Fold title="The first 12 weeks" count={`${cadenceDone}/${weeks.length} done`} soft>
+                  {/* The road first. The list underneath still does the work of
+                      pulling a week in, but nobody should have to count rows to
+                      find out how far along the sprint is. */}
+                  <div className="mb-7">
+                    <SprintRoad weeks={weeks} currentWeek={currentWeek?.week} />
+                  </div>
                   <p className="text-[15px] leading-relaxed text-[var(--muted)] mb-5">
                     One objective per week, straight from the plan. Pull a week in and it becomes
                     editable commitments in the list — assign the owners, change the wording, add what
@@ -873,7 +898,6 @@ function NumbersCard({
 const MEETING_WIDGETS = [
   { kind: "MondayBusiness", name: "Monday", when: "10:00 AM", purpose: "Scoreboard, funnel, money, commitments", tone: "var(--c1)" },
   { kind: "WednesdayTeam", name: "Wednesday", when: "5:30 PM", purpose: "Wins, bookings, training, accountability", tone: "var(--c3)" },
-  { kind: "SundayBrand", name: "Sunday", when: "4:00 PM", purpose: "Music, Media, Merch — creative decisions", tone: "var(--c4)" },
 ] as const;
 
 function MeetingWidgets({
@@ -1496,26 +1520,8 @@ function Okrs({
 }) {
   // What the Monday cards already know, so a key result the scorecard can
   // answer does not get scored by hand into a different number.
-  const cards = meetings
-    .filter((m) => m.kind === "MondayBusiness" || m.kind === "MondayMonthly")
-    .map((m) => ({
-      date: m.date, toursBooked: m.toursBooked, toursShowed: m.toursShowed,
-      tourCloseRate: m.tourCloseRate, podcastMrr: m.podcastMrr,
-    }));
-  const sops = items.filter((i) => i.view === "SOP");
-  const thisWeek = items.filter((i) => i.view === "ThisWeek");
-  const counts = {
-    sopsPublished: sops.filter((i) => i.sop?.published).length,
-    sopsRequired: 7,
-    meetingsHeld: meetings.length,
-    // Three a week since the sprint began, which is what the plan schedules.
-    meetingsExpected: Math.max(
-      1,
-      Math.ceil((Date.now() - Date.parse("2026-08-10T00:00:00-04:00")) / (7 * 86400000)) * 3
-    ),
-    commitmentsOwnedAndDated: thisWeek.filter((i) => i.owner !== "Unassigned" && i.dueDate).length,
-    commitmentsTotal: thisWeek.length,
-  };
+  const cards = cardsFor(meetings);
+  const counts = countsFrom(items, meetings.length);
   const [openQ, setOpenQ] = useState<string | null>(
     quarters.find((q) => q.isCurrent)?.id ?? quarters[0]?.id ?? null
   );
@@ -1547,19 +1553,49 @@ function Okrs({
 
             {open && (
               <div className="pt-7 space-y-9">
-                {q.objectives.map((o) => (
+                {q.objectives.map((o) => {
+                  const oScored = o.keyResults.filter((k) => k.score != null);
+                  const oAvg = oScored.length
+                    ? oScored.reduce((n, k) => n + (k.score as number), 0) / oScored.length
+                    : null;
+                  return (
                   <div key={o.id}>
                     <Eyebrow>{OBJECTIVE_LABEL[o.kind] ?? o.kind}</Eyebrow>
-                    <p className="text-[19px] leading-snug mb-5">{o.title}</p>
+                    {/* The objective's own dial, so the shape of the quarter is
+                        readable before any of the numbers are. */}
+                    <div className="flex items-start gap-4 mb-5">
+                      <Dial score={oAvg} size={58} />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[19px] leading-snug">{o.title}</p>
+                        <p className="mt-1 text-[14px] text-[var(--muted-3)]">
+                          {oScored.length}/{o.keyResults.length} key results scored
+                        </p>
+                      </div>
+                    </div>
                     <div className="space-y-6">
                       {o.keyResults.map((k) => {
                         const measured = measureKr(k.text, cards, counts);
+                        const pct = k.score == null ? 0 : Math.max(0, Math.min(1, k.score));
+                        const bar = k.score == null
+                          ? "rgba(255,255,255,0.22)"
+                          : k.score >= 0.7 ? "var(--ok, #4ea87a)"
+                          : k.score >= 0.4 ? "var(--c1, #d8b45a)" : "var(--alert, #c4614f)";
                         return (
                         <div key={k.id}>
                           <p className="text-[16px] leading-relaxed text-[var(--muted)]">
                             <span className="text-[var(--muted-3)] tabular-nums mr-2">{k.label}</span>
                             {k.text}
                           </p>
+                          <div className="mt-2 h-[3px] rounded-full bg-white/10 overflow-hidden">
+                            <div
+                              className="h-full rounded-full"
+                              style={{
+                                width: `${pct * 100}%`,
+                                background: bar,
+                                transition: "width .5s cubic-bezier(0.32,0.72,0,1)",
+                              }}
+                            />
+                          </div>
                           {measured && (
                             <p className="mt-2 text-[15px] tabular-nums">
                               <span className="text-[var(--text)]">{measured.value}</span>
@@ -1594,7 +1630,8 @@ function Okrs({
                       })}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1772,12 +1809,21 @@ function Cards({
 }
 
 function MeetingsView({
-  meetings, months, thresholds, weeks, call,
+  meetings, months, thresholds, weeks, call, quarter, items,
 }: {
   meetings: Meeting[]; months: Month[]; thresholds: Threshold[]; weeks: Week[];
   call: (u: string, m: string, b?: unknown) => Promise<boolean>;
+  quarter?: Quarter;
+  items: Item[];
 }) {
+  // Which Monday, if any, is being walked through as questions.
+  const [flowFor, setFlowFor] = useState<string | null>(null);
   const [openKind, setOpenKind] = useState<string | null>("MondayBusiness");
+  // Past occurrences stay folded away. Every Monday has its own row already,
+  // but they all rendered in one column, so this week's blank scorecard sat
+  // underneath last week's numbers and it read as though the old figures were
+  // the ones being edited.
+  const [showPast, setShowPast] = useState<Record<string, boolean>>({});
 
   return (
     <div className="space-y-10">
@@ -1834,8 +1880,12 @@ function MeetingsView({
                         : " Log one and write the prep brief before you meet."}
                     </p>
                   )}
-                  {logged.map((m) => (
-                    <div key={m.id} className="border-t border-white/10 pt-5">
+                  {logged.map((m, idx) => (
+                    <div
+                      key={m.id}
+                      className="border-t border-white/10 pt-5"
+                      hidden={idx > 0 && !showPast[def.kind]}
+                    >
                       <div className="flex items-baseline justify-between gap-3 mb-5">
                         <p className="text-[17px] tabular-nums">
                           {new Date(m.date).toLocaleDateString("en-US", {
@@ -1854,6 +1904,43 @@ function MeetingsView({
                           Remove
                         </button>
                       </div>
+
+                      {/* Monday as questions rather than a grid of boxes, and
+                          the one place the meeting, the OKRs and the thresholds
+                          are shown arguing with each other. */}
+                      {def.scorecard && def.kind === "MondayBusiness" && (
+                        flowFor === m.id ? (
+                          <div className="mb-8 rounded-[12px] border border-[var(--line)] p-5">
+                            <MondayFlow
+                              meeting={m as unknown as Record<string, unknown> & { id: string }}
+                              onSave={async (field, value) => {
+                                await call(`/api/meetings/${m.id}`, "PATCH", { [field]: value });
+                              }}
+                              onDone={() => setFlowFor(null)}
+                              measured={(quarter?.objectives ?? [])
+                                .flatMap((o) => o.keyResults)
+                                .map((k) => {
+                                  const mm = measureKr(k.text, cardsFor(meetings), countsFrom(items, meetings.length));
+                                  return mm
+                                    ? { id: k.id, label: k.label, text: k.text, current: k.score, suggested: mm.score, value: mm.value }
+                                    : null;
+                                })
+                                .filter((x): x is NonNullable<typeof x> => x !== null)}
+                              triggers={Object.entries(
+                                gradeAll(m, pacePctAt(m.date, months, meetings, weeks))
+                              ).map(([metric, g]) => ({
+                                metric,
+                                state: (g.card ?? "unknown") as "green" | "yellow" | "red" | "unknown",
+                                reading: g.display,
+                              }))}
+                            />
+                          </div>
+                        ) : (
+                          <div className="mb-7">
+                            <Button onClick={() => setFlowFor(m.id)}>Run the questions</Button>
+                          </div>
+                        )
+                      )}
 
                       {def.kind === "MondayMonthly" ? (
                         <MonthlyRollup meeting={m} weekly={meetings.filter((x) => x.kind === "MondayBusiness")} call={call} />
@@ -1896,6 +1983,17 @@ function MeetingsView({
                       )}
                     </div>
                   ))}
+
+                  {logged.length > 1 && (
+                    <button
+                      onClick={() => setShowPast((s) => ({ ...s, [def.kind]: !s[def.kind] }))}
+                      className="min-h-[44px] text-[15px] text-[var(--muted)] border-t border-white/10 pt-5 w-full text-left"
+                    >
+                      {showPast[def.kind]
+                        ? "Hide earlier meetings"
+                        : `Show ${logged.length - 1} earlier ${logged.length - 1 === 1 ? "meeting" : "meetings"}`}
+                    </button>
+                  )}
                 </div>
               </div>
             )}

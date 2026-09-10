@@ -428,3 +428,61 @@ model ChatLog {
   content   String
   createdAt DateTime @default(now())
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The 12-month plan, restored 2026-08-24.
+//
+// This model was removed on 16 Aug when the Operating System sprint replaced it,
+// and its contents were parked in backup-preOS-20260816.json. James asked for it
+// back on 24 Aug: the two plans run alongside each other rather than one
+// replacing the other. The sprint is the next twelve weeks; this is the twelve
+// months around it.
+//
+// Field names deliberately match the backup file so the restore is a copy rather
+// than a translation, including the progress already ticked off.
+
+model Phase {
+  id        String @id @default(cuid())
+  number    Int    @unique
+  name      String
+  dates     String
+  goal      String
+  color     String // badge and rail colour from the original document
+  colorBg   String
+  sortOrder Int    @default(0)
+
+  tasks PhaseTask[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PhaseTask {
+  id        String  @id @default(cuid())
+  phaseId   String
+  phase     Phase   @relation(fields: [phaseId], references: [id], onDelete: Cascade)
+  title     String
+  dueLabel  String?
+  category  String
+  owner     String?
+  done      Boolean @default(false)
+  sortOrder Int     @default(0)
+
+  steps TaskStep[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model TaskStep {
+  id        String    @id @default(cuid())
+  taskId    String
+  task      PhaseTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  title     String
+  owner     String?
+  done      Boolean   @default(false)
+  sortOrder Int       @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
