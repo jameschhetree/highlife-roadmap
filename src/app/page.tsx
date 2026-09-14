@@ -1822,16 +1822,21 @@ function WeekByWeek({
                   </div>
                 </SaveGroup>
 
-                {/* What each line kept after contractors. Payouts left blank
-                    stay "not entered" rather than being treated as zero. */}
-                {(m.podcastRevenue != null || m.musicRevenue != null) && (
+                {/* Total revenue is cash collected — James's ruling — with the
+                    two lines as its breakdown, and what each kept after
+                    contractors. Payouts left blank stay "not entered" rather
+                    than being treated as zero. */}
+                {(m.cashCollected != null || m.podcastRevenue != null || m.musicRevenue != null) && (
                   <p className="mt-2.5 text-[14px] leading-relaxed text-[var(--muted-3)] tabular-nums">
+                    {m.cashCollected != null && (
+                      <span>Total revenue <span className="text-[var(--text)]">{dollars(m.cashCollected)}</span> (cash collected)</span>
+                    )}
                     {([["Podcast", m.podcastRevenue, m.podcastPayouts],
                        ["Studio", m.musicRevenue, m.studioPayouts]] as const)
                       .filter(([, rev]) => rev != null)
                       .map(([name, rev, paid], i) => (
                         <span key={name}>
-                          {i > 0 && " · "}
+                          {(i > 0 || m.cashCollected != null) && " · "}
                           {paid != null
                             ? <>{name} kept <span className="text-[var(--text)]">{dollars(rev! - paid)}</span> — {dollars(rev!)} less {dollars(paid)} payouts</>
                             : <>{name} {dollars(rev!)}, payouts not entered</>}
