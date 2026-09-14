@@ -4,7 +4,7 @@ const NUMERIC = [
   "cashCollected", "podcastRevenue", "podcastMrr", "musicRevenue", "leads",
   "toursBooked", "toursShowed", "tourCloseRate", "recurringConversion",
   "roomHours", "editTurnaround", "roadmapCompletion", "expenses",
-  "podcastPayouts", "studioPayouts",
+  "podcastAfterPayouts", "studioAfterPayouts",
 ] as const;
 
 export async function PATCH(request: Request, ctx: { params: Promise<{ id: string }> }) {

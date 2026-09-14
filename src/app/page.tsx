@@ -76,7 +76,7 @@ type Meeting = {
   musicRevenue: number | null; leads: number | null; toursBooked: number | null;
   toursShowed: number | null; tourCloseRate: number | null; recurringConversion: number | null;
   roomHours: number | null; editTurnaround: number | null; roadmapCompletion: number | null;
-  expenses: number | null; podcastPayouts: number | null; studioPayouts: number | null;
+  expenses: number | null; podcastAfterPayouts: number | null; studioAfterPayouts: number | null;
   prep: string; decisions: string; notes: string;
 };
 
@@ -1815,10 +1815,13 @@ function WeekByWeek({
                       onSave={(v) => call(`/api/meetings/${m.id}`, "PATCH", { musicRevenue: v })} />
                     <Field label="Spent this week" type="number" value={num(m.expenses)}
                       onSave={(v) => call(`/api/meetings/${m.id}`, "PATCH", { expenses: v })} />
-                    <Field label="Podcast payouts" type="number" value={num(m.podcastPayouts)}
-                      onSave={(v) => call(`/api/meetings/${m.id}`, "PATCH", { podcastPayouts: v })} />
-                    <Field label="Studio payouts" type="number" value={num(m.studioPayouts)}
-                      onSave={(v) => call(`/api/meetings/${m.id}`, "PATCH", { studioPayouts: v })} />
+                    {/* Entered as what was left, not what went out — James's
+                        words. The payout amount, if anyone wants it, is the
+                        difference. */}
+                    <Field label="Podcast after payouts" type="number" value={num(m.podcastAfterPayouts)}
+                      onSave={(v) => call(`/api/meetings/${m.id}`, "PATCH", { podcastAfterPayouts: v })} />
+                    <Field label="Studio after payouts" type="number" value={num(m.studioAfterPayouts)}
+                      onSave={(v) => call(`/api/meetings/${m.id}`, "PATCH", { studioAfterPayouts: v })} />
                   </div>
                 </SaveGroup>
 
@@ -1831,41 +1834,55 @@ function WeekByWeek({
                     {m.cashCollected != null && (
                       <span>Total revenue <span className="text-[var(--text)]">{dollars(m.cashCollected)}</span> (cash collected)</span>
                     )}
-                    {([["Podcast", m.podcastRevenue, m.podcastPayouts],
-                       ["Studio", m.musicRevenue, m.studioPayouts]] as const)
-                      .filter(([, rev]) => rev != null)
-                      .map(([name, rev, paid], i) => (
+                    {([["Podcast", m.podcastRevenue, m.podcastAfterPayouts],
+                       ["Studio", m.musicRevenue, m.studioAfterPayouts]] as const)
+                      .filter(([, rev, after]) => rev != null || after != null)
+                      .map(([name, rev, after], i) => (
                         <span key={name}>
                           {(i > 0 || m.cashCollected != null) && " · "}
-                          {paid != null
-                            ? <>{name} kept <span className="text-[var(--text)]">{dollars(rev! - paid)}</span> — {dollars(rev!)} less {dollars(paid)} payouts</>
-                            : <>{name} {dollars(rev!)}, payouts not entered</>}
+                          {after != null
+                            ? <>{name} kept <span className="text-[var(--text)]">{dollars(after)}</span>{rev != null && <> of {dollars(rev)}</>}</>
+                            : <>{name} {dollars(rev!)}, after-payouts not entered</>}
                         </span>
                       ))}
                   </p>
                 )}
 
-                {/* The week overall, naming exactly which figures it used so it
-                    cannot be mistaken for a different total. Cash collected is
-                    the total; the lines are its breakdown. */}
-                {m.cashCollected != null
-                  && (m.podcastPayouts != null || m.studioPayouts != null || m.expenses != null)
-                  && (() => {
-                    const hasPayouts = m.podcastPayouts != null || m.studioPayouts != null;
-                    const payouts = (m.podcastPayouts ?? 0) + (m.studioPayouts ?? 0);
-                    const kept = m.cashCollected - payouts - (m.expenses ?? 0);
-                    return (
-                      <p className="mt-1.5 text-[14px] leading-relaxed text-[var(--muted-3)] tabular-nums">
-                        Week kept{" "}
-                        <span className={kept < 0 ? "text-[var(--alert)]" : "text-[var(--text)]"}>
-                          {kept < 0 ? `−${dollars(-kept)}` : dollars(kept)}
-                        </span>
-                        {" — "}{dollars(m.cashCollected)} collected
-                        {hasPayouts && <> less {dollars(payouts)} payouts</>}
-                        {m.expenses != null && <> less {dollars(m.expenses)} spent</>}
-                      </p>
-                    );
-                  })()}
+                {/* An after-payouts figure larger than its own revenue is a
+                    typo or a fact worth seeing — flagged the same amber way
+                    as the mismatch, never a blocked save or a silent
+                    negative payout. */}
+                {([["Podcast", m.podcastRevenue, m.podcastAfterPayouts],
+                   ["Studio", m.musicRevenue, m.studioAfterPayouts]] as const)
+                  .filter(([, rev, after]) => rev != null && after != null && after > rev)
+                  .map(([name, rev, after]) => (
+                    <p key={name} className="mt-1.5 text-[14px] leading-relaxed text-[var(--warn)] tabular-nums">
+                      {name} after payouts {dollars(after!)} is more than its {dollars(rev!)} revenue — a typo, or money that belongs on another line?
+                    </p>
+                  ))}
+
+                {/* The week overall: the after-payout figures summed, less
+                    spend, naming exactly which figures it used so it cannot
+                    be mistaken for a different total. A line with no
+                    after-payouts entered is simply absent from the sum, and
+                    the naming shows it. */}
+                {(m.podcastAfterPayouts != null || m.studioAfterPayouts != null) && (() => {
+                  const parts: string[] = [];
+                  let sum = 0;
+                  if (m.podcastAfterPayouts != null) { sum += m.podcastAfterPayouts; parts.push(`podcast ${dollars(m.podcastAfterPayouts)}`); }
+                  if (m.studioAfterPayouts != null) { sum += m.studioAfterPayouts; parts.push(`studio ${dollars(m.studioAfterPayouts)}`); }
+                  const kept = sum - (m.expenses ?? 0);
+                  return (
+                    <p className="mt-1.5 text-[14px] leading-relaxed text-[var(--muted-3)] tabular-nums">
+                      Week kept{" "}
+                      <span className={kept < 0 ? "text-[var(--alert)]" : "text-[var(--text)]"}>
+                        {kept < 0 ? `−${dollars(-kept)}` : dollars(kept)}
+                      </span>
+                      {" — "}{parts.join(" + ")} after payouts
+                      {m.expenses != null && <>, less {dollars(m.expenses)} spent</>}
+                    </p>
+                  );
+                })()}
 
                 {/* James's rule, verbatim brief: allow the log either way, put a
                     mismatch notice. The lines are expected to sum to cash; when
