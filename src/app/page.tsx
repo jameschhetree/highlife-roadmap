@@ -76,7 +76,7 @@ type Meeting = {
   musicRevenue: number | null; leads: number | null; toursBooked: number | null;
   toursShowed: number | null; tourCloseRate: number | null; recurringConversion: number | null;
   roomHours: number | null; editTurnaround: number | null; roadmapCompletion: number | null;
-  expenses: number | null;
+  expenses: number | null; podcastPayouts: number | null; studioPayouts: number | null;
   prep: string; decisions: string; notes: string;
 };
 
@@ -1803,14 +1803,42 @@ function WeekByWeek({
 
                 <SaveGroup className="mt-3">
                   {/* "Cash collected", the doc's words: pipeline is not revenue,
-                      invoices are not revenue. The label carries the rule. */}
-                  <div className="grid grid-cols-2 gap-3 max-w-[440px]">
+                      invoices are not revenue. The label carries the rule.
+                      The revenue lines and their payouts sit beside it — James
+                      asked for the finance inputs back on the week row. */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-w-[680px]">
                     <Field label="Cash collected" type="number" value={num(m.cashCollected)}
                       onSave={(v) => call(`/api/meetings/${m.id}`, "PATCH", { cashCollected: v })} />
+                    <Field label="Podcast revenue" type="number" value={num(m.podcastRevenue)}
+                      onSave={(v) => call(`/api/meetings/${m.id}`, "PATCH", { podcastRevenue: v })} />
+                    <Field label="Studio revenue" type="number" value={num(m.musicRevenue)}
+                      onSave={(v) => call(`/api/meetings/${m.id}`, "PATCH", { musicRevenue: v })} />
                     <Field label="Spent this week" type="number" value={num(m.expenses)}
                       onSave={(v) => call(`/api/meetings/${m.id}`, "PATCH", { expenses: v })} />
+                    <Field label="Podcast payouts" type="number" value={num(m.podcastPayouts)}
+                      onSave={(v) => call(`/api/meetings/${m.id}`, "PATCH", { podcastPayouts: v })} />
+                    <Field label="Studio payouts" type="number" value={num(m.studioPayouts)}
+                      onSave={(v) => call(`/api/meetings/${m.id}`, "PATCH", { studioPayouts: v })} />
                   </div>
                 </SaveGroup>
+
+                {/* What each line kept after contractors. Payouts left blank
+                    stay "not entered" rather than being treated as zero. */}
+                {(m.podcastRevenue != null || m.musicRevenue != null) && (
+                  <p className="mt-2.5 text-[14px] leading-relaxed text-[var(--muted-3)] tabular-nums">
+                    {([["Podcast", m.podcastRevenue, m.podcastPayouts],
+                       ["Studio", m.musicRevenue, m.studioPayouts]] as const)
+                      .filter(([, rev]) => rev != null)
+                      .map(([name, rev, paid], i) => (
+                        <span key={name}>
+                          {i > 0 && " · "}
+                          {paid != null
+                            ? <>{name} kept <span className="text-[var(--text)]">{dollars(rev! - paid)}</span> — {dollars(rev!)} less {dollars(paid)} payouts</>
+                            : <>{name} {dollars(rev!)}, payouts not entered</>}
+                        </span>
+                      ))}
+                  </p>
+                )}
 
                 {open && (
                   <div className="mt-6">

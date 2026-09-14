@@ -209,6 +209,10 @@ model Meeting {
   /// What went out that week — the other half of "are we hitting targets".
   /// Added 2026-09-10; the scorecard tracked revenue only.
   expenses           Float?
+  /// What went out to contractors against each line, so the week can show
+  /// what each stream kept. Added 2026-09-14 at James's ask.
+  podcastPayouts     Float?
+  studioPayouts      Float?
 
   /// Wednesday and Sunday do not get a scoreboard — the numbers belong to
   /// Monday. What they need is a prep brief written before the meeting, so the
