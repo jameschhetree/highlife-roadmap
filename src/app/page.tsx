@@ -1840,6 +1840,50 @@ function WeekByWeek({
                   </p>
                 )}
 
+                {/* The week overall, naming exactly which figures it used so it
+                    cannot be mistaken for a different total. Cash collected is
+                    the total; the lines are its breakdown. */}
+                {m.cashCollected != null
+                  && (m.podcastPayouts != null || m.studioPayouts != null || m.expenses != null)
+                  && (() => {
+                    const hasPayouts = m.podcastPayouts != null || m.studioPayouts != null;
+                    const payouts = (m.podcastPayouts ?? 0) + (m.studioPayouts ?? 0);
+                    const kept = m.cashCollected - payouts - (m.expenses ?? 0);
+                    return (
+                      <p className="mt-1.5 text-[14px] leading-relaxed text-[var(--muted-3)] tabular-nums">
+                        Week kept{" "}
+                        <span className={kept < 0 ? "text-[var(--alert)]" : "text-[var(--text)]"}>
+                          {kept < 0 ? `−${dollars(-kept)}` : dollars(kept)}
+                        </span>
+                        {" — "}{dollars(m.cashCollected)} collected
+                        {hasPayouts && <> less {dollars(payouts)} payouts</>}
+                        {m.expenses != null && <> less {dollars(m.expenses)} spent</>}
+                      </p>
+                    );
+                  })()}
+
+                {/* James's rule, verbatim brief: allow the log either way, put a
+                    mismatch notice. The lines are expected to sum to cash; when
+                    they do not, say so and name the direction, because over and
+                    under mean different things. A notice, not an error — the
+                    save is never blocked, and hit-or-miss above stays cash
+                    against target. A mismatch is not a miss. Shown only when
+                    cash and both lines exist; a half-entered week is not a
+                    mismatch. */}
+                {m.cashCollected != null && m.podcastRevenue != null && m.musicRevenue != null
+                  && (() => {
+                    const lines = m.podcastRevenue + m.musicRevenue;
+                    const gap = lines - m.cashCollected;
+                    if (Math.abs(gap) < 0.5) return null;
+                    return (
+                      <p className="mt-1.5 text-[14px] leading-relaxed text-[var(--warn)] tabular-nums">
+                        {gap > 0
+                          ? <>Mismatch: podcast + studio come to {dollars(lines)}, {dollars(gap)} more than the {dollars(m.cashCollected)} collected — was something counted before it was collected?</>
+                          : <>Mismatch: podcast + studio come to {dollars(lines)}, {dollars(-gap)} less than the {dollars(m.cashCollected)} collected — money in with no line yet, maybe merch or an event?</>}
+                      </p>
+                    );
+                  })()}
+
                 {open && (
                   <div className="mt-6">
                     {flowFor === m.id ? (
