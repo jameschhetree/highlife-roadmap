@@ -227,6 +227,7 @@ export default function RoadmapPage() {
   const [view, updateView] = useState<View>("Dashboard");
   const setView = (next: View) => {
     updateView(next);
+    if (next === view) return;
     const url = new URL(window.location.href);
     url.searchParams.set("view", next);
     window.history.pushState(null, "", url);
@@ -402,13 +403,13 @@ export default function RoadmapPage() {
         <div className="hl-sidebar-bottom"><Link href="/plan"><IconPlan className="hl-nav-icon"/>Read the full plan<ArrowUpRight size={14}/></Link><ThemeToggle/><button onClick={() => { adminLogout(); router.push("/login"); }}><LogOut size={17}/>Sign out</button><small>HighLife Studios · Shared workspace</small></div>
       </aside>
       <div className="hl-workspace">
-        <div className="hl-toolbar"><button className="hl-menu-button" aria-label="Open navigation" aria-expanded={navOpen} onClick={() => setNavOpen(true)}><Menu size={22}/></button><label className="hl-search"><Search size={18}/><span className="sr-only">Search all tasks</span><input value={search} placeholder="Search your roadmap…" onChange={e => { setSearch(e.target.value); setView("Tasks"); }}/></label><div className="hl-toolbar-actions"><button className="hl-primary" onClick={() => { setView("ThisWeek"); setSearch(""); setAdding(true); }}><Plus size={17}/><span>New task</span></button><span className="hl-avatar" title="HighLife team">HL</span></div></div>
+        <div className="hl-toolbar"><button className="hl-menu-button" aria-label="Open navigation" aria-expanded={navOpen} onClick={() => setNavOpen(true)}><Menu size={22}/></button><label className="hl-search"><Search size={18}/><span className="sr-only">Search all tasks</span><input value={search} placeholder="Search your roadmap…" onChange={e => { setSearch(e.target.value); setView("Tasks"); }}/></label><div className="hl-toolbar-actions"><button className="hl-primary" aria-label="New task" onClick={() => { setView("ThisWeek"); setSearch(""); setAdding(true); }}><Plus size={17}/><span>New task</span></button><span className="hl-avatar" title="HighLife team">HL</span></div></div>
         <header className="hl-heading"><div><p className="hl-eyebrow">HIGHLIFE / {dashboard ? "TEAM OVERVIEW" : ALL_TABS.find(t => t.key === view)?.label.toUpperCase()}</p><h1>{dashboard ? "Let’s move HighLife forward." : view === "Assistant" ? "A clear next step." : ALL_TABS.find(t => t.key === view)?.label}</h1><p>{ALL_TABS.find(t => t.key === view)?.blurb}</p></div><span className="hl-today">{new Date().toLocaleDateString("en-US", {weekday:"long", month:"short", day:"numeric"})}</span></header>
         <main className="hl-content" id="workspace-content">
         {error && <div className="hl-error" role="alert">{error}<button onClick={() => void load()}>Retry</button></div>}
         {loading && <p role="status" className="hl-chat-status">Loading your saved roadmap…</p>}
         {view === "Assistant" && <Assistant onChanged={load}/>}
-        {view === "Tasks" && <Panel><div className="hl-list-heading"><h2>All roadmap tasks <span>({visible.length})</span></h2><label>Teammate<select aria-label="Filter all tasks by owner" value={who} onChange={e => setWho(e.target.value)}>{owners.map(o => <option key={o}>{o}</option>)}</select></label></div><Items items={visible} call={call} ownerOptions={ownerOptions} groupBy={groupBy} onGroupBy={setGroupBy}/>{!visible.length && <Empty>No matching tasks. Try another search or teammate.</Empty>}</Panel>}
+        {view === "Tasks" && <Panel className="p-5"><div className="hl-list-heading"><h2>All roadmap tasks <span>({visible.length})</span></h2><label>Teammate<select aria-label="Filter all tasks by owner" value={who} onChange={e => setWho(e.target.value)}>{owners.map(o => <option key={o}>{o}</option>)}</select></label></div><Items items={visible} call={call} ownerOptions={ownerOptions} groupBy={groupBy} onGroupBy={setGroupBy}/>{!visible.length && <Empty>No matching tasks. Try another search or teammate.</Empty>}</Panel>}
         {/* The long range, one door: the twelve months, then the quarter. */}
         {view === "Plan" && (
           <div className="space-y-16">
