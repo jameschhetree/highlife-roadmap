@@ -29,20 +29,20 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#FAFAF8]">
+    <div className="hl-login min-h-screen flex items-center justify-center">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, ease: [0.32, 0.72, 0, 1] }}
-        className="w-full max-w-sm mx-auto px-6"
+        className="hl-login-card w-full max-w-sm mx-auto px-6"
       >
         <div className="text-center mb-10">
-          <div className="w-14 h-14 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-amber-400 to-teal-500 flex items-center justify-center shadow-lg">
+          <div className="w-14 h-14 mx-auto mb-6 rounded-2xl bg-[#0b2341] flex items-center justify-center shadow-lg">
             <span className="text-white font-bold text-xl tracking-tight">
               HL
             </span>
           </div>
-          <h1 className="text-2xl font-semibold text-[#1a1a1a] tracking-tight mb-2">
+          <h1 className="text-2xl font-semibold text-[var(--text)] tracking-tight mb-2">
             HighLife Roadmap
           </h1>
           <p className="text-sm text-[#888]">
@@ -52,33 +52,38 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="text-xs font-medium text-[#888] uppercase tracking-wider block mb-1.5">
+            <label htmlFor="username" className="text-xs font-medium text-[#888] uppercase tracking-wider block mb-1.5">
               Username
             </label>
             <input
+              id="username"
+              autoComplete="username"
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full bg-white border border-[#e5e5e5] text-sm px-4 py-3 rounded-xl text-[#1a1a1a] placeholder:text-[#ccc] focus:outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-400 transition-all"
+              className="w-full bg-white border border-[#e5e5e5] text-sm px-4 py-3 rounded-xl text-[var(--text)] placeholder:text-[#ccc] focus:outline-none focus:ring-2 focus:ring-red-400/30 focus:border-red-400 transition-all"
               placeholder="admin"
               required
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-[#888] uppercase tracking-wider block mb-1.5">
+            <label htmlFor="password" className="text-xs font-medium text-[#888] uppercase tracking-wider block mb-1.5">
               Password
             </label>
             <div className="relative">
               <input
+                id="password"
+                autoComplete="current-password"
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-white border border-[#e5e5e5] text-sm px-4 py-3 pr-12 rounded-xl text-[#1a1a1a] placeholder:text-[#ccc] focus:outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-400 transition-all"
+                className="w-full bg-white border border-[#e5e5e5] text-sm px-4 py-3 pr-12 rounded-xl text-[var(--text)] placeholder:text-[#ccc] focus:outline-none focus:ring-2 focus:ring-red-400/30 focus:border-red-400 transition-all"
                 placeholder="admin"
                 required
               />
               <button
                 type="button"
+                aria-label={showPassword ? "Hide password" : "Show password"}
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-[#ccc] hover:text-[#888] transition-colors"
               >
@@ -100,7 +105,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-[#1a1a1a] text-white text-sm font-medium rounded-xl hover:bg-[#333] transition-colors disabled:opacity-50"
+            className="w-full py-3 bg-[#c43d3d] text-white text-sm font-medium rounded-xl hover:bg-[#a72f2f] transition-colors disabled:opacity-50"
           >
             {loading ? "Signing in..." : "Sign In"}
           </button>

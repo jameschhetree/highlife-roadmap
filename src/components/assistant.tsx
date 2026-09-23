@@ -1,121 +1,56 @@
 "use client";
 
-/**
- * The assistant, which had a working API and no way to reach it.
- *
- * The chat route was rewritten for the new data model and then never given an
- * interface, so from Jaco's side the feature simply did not exist. It answers
- * questions about the roadmap and edits it in plain English, under the same
- * rules the rest of the app enforces — it cannot create an ownerless item and
- * it refuses to store leads or bookings, which belong in HighLevel.
- */
-
 import { useEffect, useRef, useState } from "react";
-import { BLUR } from "./ui";
+import { ArrowUpRight, Send, Sparkles, RefreshCw } from "lucide-react";
 
 type Msg = { role: string; content: string };
+const prompts = ["What should we focus on this week?", "What is blocked, and who can unblock it?", "Summarize progress against our quarterly goals.", "Help me prepare for our next team meeting."];
 
 export function Assistant({ onChanged }: { onChanged: () => void }) {
-  const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    fetch("/api/chat").then((r) => (r.ok ? r.json() : [])).then(setMsgs).catch(() => {});
-  }, [open]);
-
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, busy]);
+  const load = async () => {
+    setLoading(true); setError("");
+    try {
+      const r = await fetch("/api/chat");
+      if (!r.ok) throw new Error("Could not load saved conversations. Please retry.");
+      const data = await r.json();
+      if (!Array.isArray(data)) throw new Error("Could not load saved conversations.");
+      setMsgs(data);
+    } catch (e) { setError(e instanceof Error ? e.message : "Could not load conversations."); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { void load(); }, []);
+  useEffect(() => { if (msgs.length) endRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }); }, [msgs, busy]);
 
   const send = async () => {
     const message = text.trim();
-    if (!message || busy) return;
-    setText("");
-    setMsgs((m) => [...m, { role: "user", content: message }]);
-    setBusy(true);
+    if (!message || busy || loading) return;
+    setText(""); setError(""); setBusy(true);
+    setMsgs(m => [...m, { role: "user", content: message }]);
     try {
-      const r = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message }),
-      });
+      const r = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message, readOnly: true }) });
       const d = await r.json();
-      setMsgs((m) => [...m, { role: "assistant", content: d.reply ?? d.error ?? "That did not work." }]);
-      // Anything it changed should appear behind the panel straight away.
+      if (!r.ok) throw new Error(d.error || "The assistant could not reply. Please try again.");
+      setMsgs(m => [...m, { role: "assistant", content: d.reply || "No reply was returned. Please try again." }]);
       if (d.applied) onChanged();
-    } catch {
-      setMsgs((m) => [...m, { role: "assistant", content: "Could not reach the assistant." }]);
-    } finally {
-      setBusy(false);
-    }
+    } catch (e) { setError(e instanceof Error ? e.message : "Could not reach the assistant."); setText(message); }
+    finally { setBusy(false); }
   };
 
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        style={BLUR(26)}
-        className="fixed bottom-5 right-5 z-40 min-h-[52px] px-6 rounded-full pill-nav text-[16px]"
-      >
-        Ask
-      </button>
-    );
-  }
-
-  return (
-    <div className="fixed inset-x-3 bottom-3 z-40 sm:inset-x-auto sm:right-5 sm:w-[420px]">
-      <div style={BLUR(26)} className="rounded-2xl pill-nav !rounded-2xl overflow-hidden">
-        <div className="flex items-center justify-between px-5 h-[56px] border-b border-white/10">
-          <span className="text-[16px]">Ask the roadmap</span>
-          <button onClick={() => setOpen(false)} className="min-h-[44px] px-2 text-[15px] text-[var(--muted)]">
-            Close
-          </button>
-        </div>
-
-        <div className="max-h-[46vh] overflow-y-auto px-5 py-4 space-y-4">
-          {msgs.length === 0 && (
-            <div className="text-[15px] leading-relaxed text-[var(--muted)]">
-              <p className="mb-3">Try:</p>
-              <p>What does JoJo owe this week?</p>
-              <p>What is blocked?</p>
-              <p>Add: book 20 tours by Friday, owner Jaco</p>
-              <p>Score KR1 of the Launch Sprint at 0.6</p>
-            </div>
-          )}
-          {msgs.map((m, i) => (
-            <div key={i} className={m.role === "user" ? "text-right" : ""}>
-              <span
-                className={`inline-block max-w-[92%] text-left px-4 py-2.5 rounded-2xl text-[15px] leading-relaxed whitespace-pre-wrap ${
-                  m.role === "user" ? "bg-white text-black" : "bg-white/[0.06] text-[var(--text)]"
-                }`}
-              >
-                {m.content}
-              </span>
-            </div>
-          ))}
-          {busy && <p className="text-[15px] text-[var(--muted-3)]">Thinking…</p>}
-          <div ref={endRef} />
-        </div>
-
-        <div className="flex gap-2 p-3 border-t border-white/10">
-          <input
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && send()}
-            placeholder="Ask or change something"
-            className="flex-1 min-h-[48px] px-4 text-[16px]"
-          />
-          <button
-            onClick={send}
-            disabled={busy || !text.trim()}
-            className="min-h-[48px] px-5 rounded-xl bg-white text-black text-[16px] disabled:opacity-40"
-          >
-            Send
-          </button>
-        </div>
-      </div>
+  return <div className="hl-assistant-layout"><section className="hl-chat">
+    <header className="hl-chat-header"><span className="hl-ai-icon"><Sparkles size={22}/></span><div><h2>HighLife assistant</h2><p>Connected to your roadmap · Advice mode</p></div><button aria-label="Reload saved conversation" disabled={busy || loading} onClick={() => void load()}><RefreshCw size={17}/></button></header>
+    <div className="hl-chat-messages" role="log" aria-label="Conversation" aria-live="polite" aria-busy={busy || loading}>
+      {loading ? <p className="hl-chat-status">Loading saved conversation…</p> : !msgs.length && <div className="hl-chat-welcome"><Sparkles size={32}/><h2>Good questions. Clear next steps.</h2><p>Make sense of your priorities, spot blockers, and prepare for the week ahead.</p><div className="hl-prompts">{prompts.map(p => <button key={p} onClick={() => setText(p)}>{p}<ArrowUpRight size={16}/></button>)}</div></div>}
+      {msgs.map((m, i) => <div key={i} className={`hl-message ${m.role === "user" ? "from-user" : "from-assistant"}`}><small>{m.role === "user" ? "You" : "HighLife assistant"}</small><div>{m.content}</div></div>)}
+      {busy && <p className="hl-chat-status">Reviewing your roadmap…</p>}<div ref={endRef}/>
     </div>
-  );
+    {error && <div className="hl-error" role="alert">{error}</div>}
+    <form className="hl-chat-compose" onSubmit={e => { e.preventDefault(); void send(); }}><label className="sr-only" htmlFor="assistant-message">Message the assistant</label><textarea id="assistant-message" value={text} maxLength={6000} onChange={e => setText(e.target.value)} placeholder="Ask about your roadmap…" rows={2} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(); } }}/><button className="hl-primary" type="submit" disabled={busy || loading || !text.trim()} aria-label="Send message"><Send size={18}/></button><small>Advice only. Your saved tasks and progress stay in your control.</small></form>
+  </section><aside className="hl-assistant-help"><p className="hl-eyebrow">A LITTLE DIRECTION</p><h2>Start with what matters.</h2><p>Your assistant can use saved tasks, goals, meetings, and team context to help you plan.</p>{prompts.map((p, i) => <button key={p} onClick={() => setText(p)}><span>0{i+1}</span>{p}<ArrowUpRight size={16}/></button>)}<div className="hl-assistant-note"><Sparkles size={20}/><h3>Ideas before action.</h3><p>This workspace offers guidance. Apply changes in the relevant task or roadmap section when you’re ready.</p></div></aside></div>;
 }

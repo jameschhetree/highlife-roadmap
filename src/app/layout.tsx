@@ -18,7 +18,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${geistSans.variable} h-full antialiased`}>
+    <html suppressHydrationWarning lang="en" className={`${geistSans.variable} h-full antialiased`}>
       <script
           // Applied before first paint so neither theme flashes on load.
           //
