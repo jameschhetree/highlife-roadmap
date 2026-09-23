@@ -21,7 +21,7 @@ import { Eyebrow, Empty, Field, Choice, Button, Tick, Tag, Reveal, Panel, SaveGr
 import { gradeAll, type Card } from "@/lib/grade";
 import { Assistant } from "@/components/assistant";
 import { ThemeToggle } from "@/components/theme";
-import { LayoutDashboard, ListTodo, Sparkles, Search, Plus, Menu, X, ArrowUpRight, LogOut } from "lucide-react";
+import { LayoutDashboard, ListTodo, Sparkles, Search, Plus, Menu, X, ArrowUpRight, LogOut, ChevronDown, MoreHorizontal } from "lucide-react";
 import { adminLogout } from "@/lib/admin-auth";
 import {
   IconWeek, IconMeeting, IconMoney, IconSystems, IconRevenue,
@@ -93,14 +93,14 @@ type Tab = { key: View; label: string; blurb: string; icon: React.ComponentType<
  * tab is still here, one fold down.
  */
 const TABS: Tab[] = [
-  { icon: LayoutDashboard, key: "Dashboard", label: "Dashboard", blurb: "Your studio, your team, and a clear next step." },
-  { icon: ListTodo, key: "Tasks", label: "All tasks", blurb: "Find work across the roadmap. Filter by teammate, then open a task to update it." },
-  { icon: Sparkles, key: "Assistant", label: "AI assistant", blurb: "Turn questions about your roadmap into practical next steps." },
+  { icon: LayoutDashboard, key: "Dashboard", label: "Dashboard", blurb: "A little less noise. A clear view of what needs you." },
   { icon: IconWeek, key: "ThisWeek", label: "This week", blurb: "Commitments due before next Monday. One owner, one date." },
   { icon: IconMoney, key: "Money", label: "Money", blurb: "Cash in and spend out, week by week, against the targets. Numbers are entered here." },
   { icon: IconPlan, key: "Plan", label: "Plan", blurb: "The long range in one place: twelve months of phases, then the quarterly OKRs." },
+  { icon: Sparkles, key: "Assistant", label: "AI assistant", blurb: "Turn questions about your roadmap into practical next steps." },
 ];
 const MORE_TABS: Tab[] = [
+  { icon: ListTodo, key: "Tasks", label: "All tasks", blurb: "Find work across the roadmap. Filter by teammate, then open a task to update it." },
   { icon: IconMeeting, key: "Meetings", label: "Meetings", blurb: "Agendas and prep briefs. The numbers live on Money now." },
   { icon: IconSop, key: "SOP", label: "SOPs", blurb: "Documented in the order revenue touches the work." },
   { icon: IconTeam, key: "Team", label: "Team", blurb: "Who is accountable for what. Owners are picked from this list, so a typo cannot invent a person." },
@@ -393,18 +393,23 @@ export default function RoadmapPage() {
       <aside className={`hl-sidebar ${navOpen ? "is-open" : ""}`}>
         <div className="hl-brand"><span className="hl-brand-mark">H<span>↗</span></span><div>HIGHLIFE<small>STUDIO WORKSPACE</small></div><button className="hl-mobile-close" aria-label="Close navigation" onClick={() => setNavOpen(false)}><X size={20}/></button></div>
         <nav aria-label="Workspace">
-          {[["YOUR WORKSPACE", TABS], ["OPERATIONS", MORE_TABS]] .map(([label, tabs]) => <div key={label as string}>
-            <p className="hl-nav-label">{label as string}</p>
-            {(tabs as Tab[]).map(t => <button key={t.key} aria-current={view === t.key ? "page" : undefined} className={`hl-nav-item ${view === t.key ? "selected" : ""}`} onClick={() => { setView(t.key); setSearch(""); setWho("Everyone"); setAdding(false); setNavOpen(false); }}>
-              <t.icon className="hl-nav-icon"/><span>{t.label}</span>{t.key === "Blocked" && blocked > 0 && <b>{blocked}</b>}
+          <p className="hl-nav-label">WORKSPACE</p>
+          {TABS.map(t => <button key={t.key} aria-current={view === t.key ? "page" : undefined} className={`hl-nav-item ${view === t.key ? "selected" : ""}`} onClick={() => { setView(t.key); setSearch(""); setWho("Everyone"); setAdding(false); setNavOpen(false); }}>
+            <t.icon className="hl-nav-icon"/><span>{t.label}</span>
+          </button>)}
+          <details className="hl-more" key={MORE_TABS.some(t => t.key === view) ? "secondary" : "primary"} open={MORE_TABS.some(t => t.key === view) || undefined}>
+            <summary><MoreHorizontal size={18}/><span>More</span><ChevronDown size={14}/></summary>
+            {MORE_TABS.map(t => <button key={t.key} aria-current={view === t.key ? "page" : undefined} className={`hl-nav-item ${view === t.key ? "selected" : ""}`} onClick={() => { setView(t.key); setSearch(""); setWho("Everyone"); setAdding(false); setNavOpen(false); }}>
+              <t.icon className="hl-nav-icon"/><span>{t.label}</span>
             </button>)}
-          </div>)}
+            <Link className="hl-nav-item" href="/plan">Read the full plan <ArrowUpRight size={14}/></Link>
+          </details>
         </nav>
-        <div className="hl-sidebar-bottom"><Link href="/plan"><IconPlan className="hl-nav-icon"/>Read the full plan<ArrowUpRight size={14}/></Link><ThemeToggle/><button onClick={() => { adminLogout(); router.push("/login"); }}><LogOut size={17}/>Sign out</button><small>HighLife Studios · Shared workspace</small></div>
+        <div className="hl-sidebar-bottom"><ThemeToggle/><button onClick={() => { adminLogout(); router.push("/login"); }}><LogOut size={17}/>Sign out</button><small>HighLife Studios · Shared workspace</small></div>
       </aside>
       <div className="hl-workspace">
         <div className="hl-toolbar"><button className="hl-menu-button" aria-label="Open navigation" aria-expanded={navOpen} onClick={() => setNavOpen(true)}><Menu size={22}/></button><label className="hl-search"><Search size={18}/><span className="sr-only">Search all tasks</span><input value={search} placeholder="Search your roadmap…" onChange={e => { setSearch(e.target.value); setView("Tasks"); }}/></label><div className="hl-toolbar-actions"><button className="hl-primary" aria-label="New task" onClick={() => { setView("ThisWeek"); setSearch(""); setAdding(true); }}><Plus size={17}/><span>New task</span></button><span className="hl-avatar" title="HighLife team">HL</span></div></div>
-        <header className="hl-heading"><div><p className="hl-eyebrow">HIGHLIFE / {dashboard ? "TEAM OVERVIEW" : ALL_TABS.find(t => t.key === view)?.label.toUpperCase()}</p><h1>{dashboard ? "Let’s move HighLife forward." : view === "Assistant" ? "A clear next step." : ALL_TABS.find(t => t.key === view)?.label}</h1><p>{ALL_TABS.find(t => t.key === view)?.blurb}</p></div><span className="hl-today">{new Date().toLocaleDateString("en-US", {weekday:"long", month:"short", day:"numeric"})}</span></header>
+        <header className="hl-heading"><div><p className="hl-eyebrow">HIGHLIFE / {dashboard ? "TEAM OVERVIEW" : ALL_TABS.find(t => t.key === view)?.label.toUpperCase()}</p><h1>{dashboard ? "Your week, at a glance." : view === "Assistant" ? "A clear next step." : ALL_TABS.find(t => t.key === view)?.label}</h1><p>{ALL_TABS.find(t => t.key === view)?.blurb}</p></div><span className="hl-today">{new Date().toLocaleDateString("en-US", {weekday:"long", month:"short", day:"numeric"})}</span></header>
         <main className="hl-content" id="workspace-content">
         {error && <div className="hl-error" role="alert">{error}<button onClick={() => void load()}>Retry</button></div>}
         {loading && <p role="status" className="hl-chat-status">Loading your saved roadmap…</p>}
@@ -433,24 +438,28 @@ export default function RoadmapPage() {
         {view === "Systems" && <Systems data={systems} call={call} />}
         {view === "Team" && <Team people={people} items={items} call={call} onDone={load} />}
 
-        {/* This week is the dashboard. Two columns on a wide screen so it reads
-            at a glance instead of scrolling for a minute: what to do on the
-            left, where you stand on the right. */}
-        {/*
-          One screen, no scrolling, on a wide monitor.
-
-          Jaco sent four dashboards and they all do the same thing: a grid of
-          cards that fits the viewport, each card naming itself and putting its
-          number in the corner. The old layout stacked the same content down a
-          1100px column, so half of it was below the fold and the widescreen he
-          works on was two thirds empty.
-
-          Below 1280px this falls back to a stack that scrolls normally — a
-          fixed-height grid on a laptop screen would crush every card. The
-          panels in the lower row scroll inside themselves, so the page never
-          does.
-        */}
-        {(dashboard || view === "ThisWeek") && (
+        {dashboard && !loading && <div className="hl-overview">
+          <section className="hl-overview-metrics" aria-label="Studio overview">
+            <button onClick={() => setView("ThisWeek")}><span>Weekly tasks</span><strong>{openThisWeek}</strong><small>Open commitments <ArrowUpRight size={14}/></small></button>
+            <button onClick={() => setView("Money")}><span>Cash collected</span><strong>{collectedTotal == null ? "—" : dollars(collectedTotal)}</strong><small>All recorded months <ArrowUpRight size={14}/></small></button>
+            <button onClick={() => setView("Plan")}><span>Roadmap progress</span><strong>{cadenceDone}<em> / {weeks.length}</em></strong><small>Weeks completed <ArrowUpRight size={14}/></small></button>
+          </section>
+          <section className="hl-focus-tasks">
+            <div className="hl-section-head"><div><h2>On your list</h2><p>Your next five open weekly tasks, earliest due first.</p></div><button onClick={() => setView("ThisWeek")}>View all <ArrowUpRight size={15}/></button></div>
+            <div className="hl-simple-tasks">
+              {[...items].filter(i => i.view === "ThisWeek" && i.status !== "Done").sort((a,b) => (a.dueDate ?? "9999").localeCompare(b.dueDate ?? "9999")).slice(0,5).map(i => <button key={i.id} onClick={() => setView("ThisWeek")}>
+                <span className={`hl-task-dot ${i.status === "InProgress" ? "in-progress" : i.status === "Blocked" ? "blocked" : ""}`}/><span className="hl-task-name"><strong>{i.title}</strong><small>{i.owner} · {i.status === "InProgress" ? "In progress" : i.status === "Blocked" ? "Blocked" : "Not started"}</small></span><span className="hl-task-due">{i.dueDate ? formatStoredDate(i.dueDate) : "No date"}</span><ArrowUpRight size={14}/>
+              </button>)}
+              {openThisWeek === 0 && <p className="hl-clear-week">Your weekly list is clear. Add a task when you’re ready.</p>}
+            </div>
+            <button className="hl-add-quiet" onClick={() => { setView("ThisWeek"); setAdding(true); }}><Plus size={16}/>Add a task</button>
+          </section>
+          <aside className="hl-focus-side">
+            <section className="hl-week-focus"><p className="hl-eyebrow">{currentWeek ? `WEEK ${currentWeek.week} · CURRENT FOCUS` : "THE BIGGER PICTURE"}</p><h2>{currentWeek?.objective ?? "Make room for the work that matters."}</h2><p>{currentWeek?.deliverable ?? "Keep your next priorities connected to the studio’s longer-term plan."}</p><button onClick={() => setView("Plan")}>Open your plan <ArrowUpRight size={15}/></button></section>
+            <button className="hl-assistant-shortcut" onClick={() => setView("Assistant")}><span className="hl-ai-icon"><Sparkles size={19}/></span><span><strong>Need a hand?</strong><small>Think it through with your AI assistant.</small></span><ArrowUpRight size={17}/></button>
+          </aside>
+        </div>}
+        {view === "ThisWeek" && (
           <div className={`hl-board ${!dashboard ? "hl-week-only" : ""}`}>
             <div className="min-w-0 hl-pace">
               <PaceCard board={board} onOpen={setView} />
