@@ -21,6 +21,8 @@ import { Eyebrow, Empty, Field, Choice, Button, Tick, Tag, Reveal, Panel, SaveGr
 import { gradeAll, type Card } from "@/lib/grade";
 import { Assistant } from "@/components/assistant";
 import { ThemeToggle } from "@/components/theme";
+import { LayoutDashboard, ListTodo, Sparkles, Search, Plus, Menu, X, ArrowUpRight, LogOut } from "lucide-react";
+import { adminLogout } from "@/lib/admin-auth";
 import {
   IconWeek, IconMeeting, IconMoney, IconSystems, IconRevenue,
   IconContent, IconEvent, IconSop, IconTeam, IconBlocked, IconDecision, IconPlan,
@@ -38,7 +40,7 @@ import { pace, monthKeyOf, funnel } from "@/lib/pace";
 import { Curve, PaceBar, Funnel, Bars, type Point } from "@/components/chart";
 
 type View =
-  | "ThisWeek" | "Money" | "Plan" | "Meetings"
+  | "Dashboard" | "Assistant" | "Tasks" | "ThisWeek" | "Money" | "Plan" | "Meetings"
   | "RevenueProject" | "ContentCalendar" | "Event" | "SOP" | "Systems" | "Team"
   | "Blocked" | "DecisionLog";
 
@@ -80,7 +82,7 @@ type Meeting = {
   prep: string; decisions: string; notes: string;
 };
 
-type Tab = { key: View; label: string; blurb: string; icon: (p: { className?: string }) => React.ReactElement };
+type Tab = { key: View; label: string; blurb: string; icon: React.ComponentType<{ className?: string }> };
 
 /**
  * Three doors, then everything else behind More.
@@ -91,6 +93,9 @@ type Tab = { key: View; label: string; blurb: string; icon: (p: { className?: st
  * tab is still here, one fold down.
  */
 const TABS: Tab[] = [
+  { icon: LayoutDashboard, key: "Dashboard", label: "Dashboard", blurb: "Your studio, your team, and a clear next step." },
+  { icon: ListTodo, key: "Tasks", label: "All tasks", blurb: "Find work across the roadmap. Filter by teammate, then open a task to update it." },
+  { icon: Sparkles, key: "Assistant", label: "AI assistant", blurb: "Turn questions about your roadmap into practical next steps." },
   { icon: IconWeek, key: "ThisWeek", label: "This week", blurb: "Commitments due before next Monday. One owner, one date." },
   { icon: IconMoney, key: "Money", label: "Money", blurb: "Cash in and spend out, week by week, against the targets. Numbers are entered here." },
   { icon: IconPlan, key: "Plan", label: "Plan", blurb: "The long range in one place: twelve months of phases, then the quarterly OKRs." },
@@ -219,8 +224,15 @@ function coveringWeek(meetingDate: string): string {
 export default function RoadmapPage() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
-  const [view, setView] = useState<View>("ThisWeek");
-  const [moreOpen, setMoreOpen] = useState(false);
+  const [view, updateView] = useState<View>("Dashboard");
+  const setView = (next: View) => {
+    updateView(next);
+    if (next === view) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set("view", next);
+    window.history.pushState(null, "", url);
+  };
+  const [search, setSearch] = useState("");
   const [who, setWho] = useState("Everyone");
   const [quarters, setQuarters] = useState<Quarter[]>([]);
   const [items, setItems] = useState<Item[]>([]);
@@ -238,13 +250,24 @@ export default function RoadmapPage() {
   const [fixed, setFixed] = useState<Fixed[]>([]);
   const [error, setError] = useState("");
   const [adding, setAdding] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!isAdminAuthed()) router.push("/login");
-    else setReady(true);
+    else {
+      const syncView = () => {
+        const requested = new URLSearchParams(window.location.search).get("view");
+        updateView(ALL_TABS.some(t => t.key === requested) ? requested as View : "Dashboard");
+      };
+      syncView();
+      setReady(true);
+      window.addEventListener("popstate", syncView);
+      return () => window.removeEventListener("popstate", syncView);
+    }
   }, [router]);
 
   const load = async () => {
+    try {
     const [r, m, sy, pe, fx] = await Promise.all([
       fetch("/api/roadmap"), fetch("/api/meetings"), fetch("/api/systems"), fetch("/api/people"),
       fetch("/api/fixed-expenses"),
@@ -257,6 +280,9 @@ export default function RoadmapPage() {
     if (sy.ok) setSystems(await sy.json());
     if (pe.ok) setPeople(await pe.json());
     if (fx.ok) setFixed(await fx.json());
+    setError([m, sy, pe, fx].some(r => !r.ok) ? "Some sections could not load. Retry before making changes." : "");
+    } catch { setError("Could not reach your roadmap. Please retry."); }
+    finally { setLoading(false); }
   };
   useEffect(() => { if (ready) load(); }, [ready]);
 
@@ -305,9 +331,9 @@ export default function RoadmapPage() {
   const visible = useMemo(() => {
     const base = view === "Blocked"
       ? items.filter((i) => i.status === "Blocked")
-      : items.filter((i) => i.view === view);
-    return byOwner(base);
-  }, [items, view, who]);
+      : view === "Tasks" ? items : items.filter((i) => i.view === (view === "Dashboard" ? "ThisWeek" : view));
+    return byOwner(base).filter(i => `${i.title} ${i.owner} ${i.pillar} ${i.notes}`.toLowerCase().includes(search.toLowerCase()));
+  }, [items, view, who, search]);
 
   const call = async (url: string, method: string, body?: unknown) => {
     setError("");
@@ -359,166 +385,31 @@ export default function RoadmapPage() {
 
   // The dashboard is the one view that is meant to fit a monitor exactly.
   // Everything else is a document and scrolls.
-  const dashboard = view === "ThisWeek";
+  const dashboard = view === "Dashboard";
 
   return (
-    <div className={`min-h-screen lg:pl-[248px] ${dashboard ? "board-fit" : ""}`}>
-      {/* On a phone the rail is off-canvas, so without this button the whole
-          navigation is unreachable. It was missing on the first pass and the
-          only reason I noticed is that the browser found zero of them. */}
-      {navOpen && (
-        <button
-          aria-label="Close the menu"
-          onClick={() => setNavOpen(false)}
-          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
-        />
-      )}
-
-      {/* Left rail, following the HighLevel layout Jaco pointed at. Under
-          1024px it goes off-canvas behind the Menu button. */}
-      <aside
-        className={`fixed z-40 lg:z-30 inset-y-0 left-0 w-[248px] shrink-0 overflow-y-auto no-scrollbar
-          border-r border-white/10 bg-[var(--surface)] transition-transform duration-300
-          ${navOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`}
-      >
-        <div className="px-4 pt-5 pb-8">
-          <p className="text-[11px] tracking-[0.2em] uppercase text-[var(--muted-3)] mb-3 px-2">
-            HighLife
-          </p>
-          <div className="bezel rounded-xl px-3 py-2.5 mb-5" style={BLUR(24)}>
-            <p className="text-[15px] leading-tight">HighLife Studios</p>
-            <p className="text-[13px] text-[var(--muted-3)] mt-0.5">
-              {current ? current.name : "Operating System"}
-            </p>
-          </div>
-
-          <nav className="space-y-0.5">
-            {(() => {
-              const countFor = (t: Tab) => t.key === "Blocked" ? blocked
-                : t.key === "Team" ? people.filter((x) => x.active).length
-                : ["Money", "Meetings", "Plan"].includes(t.key) ? 0
-                : byOwner(items.filter((i) => i.view === t.key)).length;
-              const NavButton = ({ t, sub }: { t: Tab; sub?: boolean }) => {
-                const n = countFor(t);
-                const active = view === t.key;
-                const Icon = t.icon;
-                return (
-                  <button
-                    key={t.key}
-                    onClick={() => { setView(t.key); setNavOpen(false); }}
-                    className={`w-full min-h-[46px] px-3 rounded-xl flex items-center gap-3 text-[15px]
-                      transition-colors duration-200 ${sub ? "pl-6" : ""} ${
-                      active
-                        ? "bg-[var(--text)]/[0.10] text-[var(--text)]"
-                        : "text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--text)]/[0.05]"
-                    }`}
-                  >
-                    <Icon className={`w-5 h-5 shrink-0 ${active ? "" : "opacity-70"}`} />
-                    <span className="flex-1 text-left">{t.label}</span>
-                    {n > 0 && <span className="text-[13px] tabular-nums text-[var(--muted-3)]">{n}</span>}
-                  </button>
-                );
-              };
-              // The fold stays open while the reader is inside it, so picking
-              // Meetings does not close the drawer they navigated in through.
-              const inMore = MORE_TABS.some((t) => t.key === view);
-              const showMore = moreOpen || inMore;
-              return (
-                <>
-                  {TABS.map((t) => <NavButton key={t.key} t={t} />)}
-                  <button
-                    onClick={() => setMoreOpen((v) => !v || inMore)}
-                    className={`w-full min-h-[46px] px-3 rounded-xl flex items-center gap-3 text-[15px]
-                      transition-colors duration-200 ${
-                      showMore ? "text-[var(--text)]" : "text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--text)]/[0.05]"
-                    }`}
-                  >
-                    <span className="w-5 shrink-0 text-center leading-none">{showMore ? "−" : "+"}</span>
-                    <span className="flex-1 text-left">More</span>
-                    {blocked > 0 && !showMore && (
-                      <span className="text-[13px] tabular-nums text-[var(--alert)]">{blocked}</span>
-                    )}
-                  </button>
-                  {showMore && MORE_TABS
-                    .filter((t) => t.key !== "Blocked" || blocked > 0)
-                    .map((t) => <NavButton key={t.key} t={t} sub />)}
-                </>
-              );
-            })()}
-          </nav>
-
-          <div className="mt-6 pt-5 border-t border-white/10">
-            <Link
-              href="/plan"
-              className="w-full min-h-[46px] px-3 rounded-xl flex items-center gap-3 text-[15px] text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--text)]/[0.05]"
-            >
-              <IconPlan className="w-5 h-5 shrink-0 opacity-70" />
-              <span>Read the plan</span>
-            </Link>
-            <div className="px-3 pt-4 space-y-3">
-              <ThemeToggle />
-              <select
-                value={who}
-                onChange={(e) => setWho(e.target.value)}
-                aria-label="Filter by owner"
-                className="w-full min-h-[44px] rounded-xl px-3 text-[15px]"
-              >
-                {owners.map((o) => <option key={o} value={o}>{o}</option>)}
-              </select>
-            </div>
-          </div>
-        </div>
+    <div className="hl-app"><div className="hl-shell">
+      {navOpen && <button className="hl-menu-backdrop" aria-label="Close navigation" onClick={() => setNavOpen(false)} />}
+      <aside className={`hl-sidebar ${navOpen ? "is-open" : ""}`}>
+        <div className="hl-brand"><span className="hl-brand-mark">H<span>↗</span></span><div>HIGHLIFE<small>STUDIO WORKSPACE</small></div><button className="hl-mobile-close" aria-label="Close navigation" onClick={() => setNavOpen(false)}><X size={20}/></button></div>
+        <nav aria-label="Workspace">
+          {[["YOUR WORKSPACE", TABS], ["OPERATIONS", MORE_TABS]] .map(([label, tabs]) => <div key={label as string}>
+            <p className="hl-nav-label">{label as string}</p>
+            {(tabs as Tab[]).map(t => <button key={t.key} aria-current={view === t.key ? "page" : undefined} className={`hl-nav-item ${view === t.key ? "selected" : ""}`} onClick={() => { setView(t.key); setSearch(""); setWho("Everyone"); setAdding(false); setNavOpen(false); }}>
+              <t.icon className="hl-nav-icon"/><span>{t.label}</span>{t.key === "Blocked" && blocked > 0 && <b>{blocked}</b>}
+            </button>)}
+          </div>)}
+        </nav>
+        <div className="hl-sidebar-bottom"><Link href="/plan"><IconPlan className="hl-nav-icon"/>Read the full plan<ArrowUpRight size={14}/></Link><ThemeToggle/><button onClick={() => { adminLogout(); router.push("/login"); }}><LogOut size={17}/>Sign out</button><small>HighLife Studios · Shared workspace</small></div>
       </aside>
-
-      <header className={`px-5 md:px-10 ${dashboard
-        ? "w-full max-w-[1800px] mx-auto pt-4 pb-3 board-head"
-        : "max-w-[1100px] mx-auto pt-6 lg:pt-10 pb-6"}`}>
-        <button
-          onClick={() => setNavOpen(true)}
-          style={BLUR(24)}
-          className="lg:hidden mb-6 min-h-[46px] px-5 rounded-full bezel text-[15px]"
-        >
-          Menu
-        </button>
-
-        {/* The page names itself. "Roadmap" on every tab told you nothing about
-            where you were. */}
-        <div className="flex items-baseline justify-between gap-4 flex-wrap">
-          <h1 className={`${dashboard ? "text-[22px] md:text-[24px]" : "text-[30px] md:text-[36px]"} leading-[1.05] font-semibold tracking-[-0.025em]`}>
-            {ALL_TABS.find((t) => t.key === view)?.label}
-          </h1>
-          {current && view === "ThisWeek" && (
-            <p className="text-[15px] text-[var(--muted)] tabular-nums">
-              {currentWeek ? `Week ${currentWeek.week} of 12` : current.name} · {current.dates}
-            </p>
-          )}
-        </div>
-        <p className={`mt-2 text-[16px] leading-relaxed text-[var(--muted)] max-w-[70ch] ${dashboard ? "board-hide" : ""}`}>
-          {ALL_TABS.find((t) => t.key === view)?.blurb}
-          {who !== "Everyone" && <span className="text-[var(--text)]"> Showing {who} only.</span>}
-        </p>
-        {dashboard && who !== "Everyone" && (
-          <p className="mt-1 text-[14px] text-[var(--muted)]">Showing {who} only.</p>
-        )}
-
-        {error && (
-          <div className="mt-5 px-4 py-3.5 rounded-xl text-[16px] leading-relaxed bezel" style={BLUR(24)}>
-            {error}
-          </div>
-        )}
-      </header>
-
-      <main className={`px-5 md:px-10 ${dashboard
-        ? "w-full max-w-[1800px] mx-auto pb-6 board-main"
-        : "max-w-[1100px] mx-auto pb-32"}`}>
-
-
-        {error && (
-          <div className="mb-6 px-4 py-3.5 rounded-xl text-[16px] leading-relaxed glass">
-            {error}
-          </div>
-        )}
-
+      <div className="hl-workspace">
+        <div className="hl-toolbar"><button className="hl-menu-button" aria-label="Open navigation" aria-expanded={navOpen} onClick={() => setNavOpen(true)}><Menu size={22}/></button><label className="hl-search"><Search size={18}/><span className="sr-only">Search all tasks</span><input value={search} placeholder="Search your roadmap…" onChange={e => { setSearch(e.target.value); setView("Tasks"); }}/></label><div className="hl-toolbar-actions"><button className="hl-primary" aria-label="New task" onClick={() => { setView("ThisWeek"); setSearch(""); setAdding(true); }}><Plus size={17}/><span>New task</span></button><span className="hl-avatar" title="HighLife team">HL</span></div></div>
+        <header className="hl-heading"><div><p className="hl-eyebrow">HIGHLIFE / {dashboard ? "TEAM OVERVIEW" : ALL_TABS.find(t => t.key === view)?.label.toUpperCase()}</p><h1>{dashboard ? "Let’s move HighLife forward." : view === "Assistant" ? "A clear next step." : ALL_TABS.find(t => t.key === view)?.label}</h1><p>{ALL_TABS.find(t => t.key === view)?.blurb}</p></div><span className="hl-today">{new Date().toLocaleDateString("en-US", {weekday:"long", month:"short", day:"numeric"})}</span></header>
+        <main className="hl-content" id="workspace-content">
+        {error && <div className="hl-error" role="alert">{error}<button onClick={() => void load()}>Retry</button></div>}
+        {loading && <p role="status" className="hl-chat-status">Loading your saved roadmap…</p>}
+        {view === "Assistant" && <Assistant onChanged={load}/>}
+        {view === "Tasks" && <Panel className="p-5"><div className="hl-list-heading"><h2>All roadmap tasks <span>({visible.length})</span></h2><label>Teammate<select aria-label="Filter all tasks by owner" value={who} onChange={e => setWho(e.target.value)}>{owners.map(o => <option key={o}>{o}</option>)}</select></label></div><Items items={visible} call={call} ownerOptions={ownerOptions} groupBy={groupBy} onGroupBy={setGroupBy}/>{!visible.length && <Empty>No matching tasks. Try another search or teammate.</Empty>}</Panel>}
         {/* The long range, one door: the twelve months, then the quarter. */}
         {view === "Plan" && (
           <div className="space-y-16">
@@ -559,17 +450,17 @@ export default function RoadmapPage() {
           panels in the lower row scroll inside themselves, so the page never
           does.
         */}
-        {view === "ThisWeek" && (
-          <div className="grid gap-3 board-grid">
-            <div className="min-w-0 board-a">
+        {(dashboard || view === "ThisWeek") && (
+          <div className={`hl-board ${!dashboard ? "hl-week-only" : ""}`}>
+            <div className="min-w-0 hl-pace">
               <PaceCard board={board} onOpen={setView} />
             </div>
 
-            <div className="min-w-0 board-b grid grid-cols-2 gap-3 content-start">
+            <div className="hl-stats">
               <Tile label="Collected" value={collectedTotal == null ? "—" : dollars(collectedTotal)}
-                sub={current ? `of ${current.cumulative} by Sep 30` : ""} onClick={() => setView("Money")} />
+                sub="recorded across your meetings" onClick={() => setView("Money")} />
               <Tile label="Open" value={String(openThisWeek)}
-                sub={overdue > 0 ? `${overdue} past due` : "on time"} warn={overdue > 0}
+                sub={`${byOwner(items.filter(i => i.view === "ThisWeek" && i.status !== "Done" && i.dueDate && Date.parse(i.dueDate) < Date.now())).length} weekly tasks past due`} warn={byOwner(items.filter(i => i.view === "ThisWeek" && i.status !== "Done" && i.dueDate && Date.parse(i.dueDate) < Date.now())).length > 0}
                 onClick={() => setView("ThisWeek")} />
               <Tile label="Cadence" value={`${cadenceDone}/${weeks.length}`}
                 sub="weeks done" onClick={() => setView("ThisWeek")} />
@@ -589,14 +480,14 @@ export default function RoadmapPage() {
               )}
             </div>
 
-            <div className="min-w-0 board-c">
+            <div className="min-w-0 hl-tours">
               <ToursCard board={board} onOpen={setView} />
             </div>
 
             {/* The tasks, as a card like everything else. They were a bare list
                 running down the page under a heading, which is why they did not
                 look like part of the same product. */}
-            <div className="min-w-0 board-a">
+            <div className="min-w-0 hl-tasks">
               <Panel className="h-full min-h-0 flex flex-col board-tight">
                 <div className="flex items-start justify-between gap-4 mb-3">
                   <div className="min-w-0">
@@ -646,6 +537,13 @@ export default function RoadmapPage() {
                   </select>
                 </div>
 
+                <div className="pt-1 border-t border-white/10">
+                  <AddItem
+                    view={dashboard ? "ThisWeek" : view} quarterId={current?.id ?? null}
+                    open={adding} setOpen={setAdding} onDone={load} onError={setError}
+                    ownerOptions={ownerOptions}
+                  />
+                </div>
                 <div className="min-h-0 flex-1 overflow-y-auto no-scrollbar fade-b -mx-1 px-1">
                   {visible.length === 0 ? (
                     <Empty>
@@ -654,21 +552,16 @@ export default function RoadmapPage() {
                         : `Nothing assigned to ${who} this week.`}
                     </Empty>
                   ) : (
-                    <Items items={visible} call={call} ownerOptions={ownerOptions} groupBy={groupBy} dense />
+                    <><Items items={dashboard ? [...visible].sort((a,b) => Number(a.status === "Done") - Number(b.status === "Done") || (a.dueDate ?? "9999").localeCompare(b.dueDate ?? "9999")).slice(0, 5) : visible} call={call} ownerOptions={ownerOptions} groupBy={groupBy} dense />
+                  {dashboard && visible.length > 5 && <button className="hl-text-link" onClick={() => setView("ThisWeek")}>View all {visible.length} weekly tasks <ArrowUpRight size={15}/></button>}</>
                   )}
                 </div>
 
-                <div className="pt-1 border-t border-white/10">
-                  <AddItem
-                    view={view} quarterId={current?.id ?? null}
-                    open={adding} setOpen={setAdding} onDone={load} onError={setError}
-                    ownerOptions={ownerOptions}
-                  />
-                </div>
+
               </Panel>
             </div>
 
-            <div className="min-w-0 board-e flex flex-col gap-3 board-scroll no-scrollbar fade-b">
+            <div className="hl-meetings flex flex-col gap-4">
               <MeetingWidgets meetings={meetings} guide={guide} onOpen={setView} />
 
               {currentWeek && (
@@ -731,7 +624,7 @@ export default function RoadmapPage() {
               )}
             </div>
 
-            <div className="min-w-0 board-f flex flex-col gap-3 board-scroll no-scrollbar fade-b">
+            <div className="hl-team flex flex-col gap-4">
               {(() => {
                 const open = items.filter((i) => i.view === "ThisWeek" && i.status !== "Done");
                 const named = [...new Set(open.map((i) => i.owner))].filter((o) => o !== "Unassigned");
@@ -797,7 +690,7 @@ export default function RoadmapPage() {
           </div>
         )}
 
-        {!["Plan", "Money", "Meetings", "Systems", "Team", "ThisWeek"].includes(view) && (
+        {!["Dashboard", "Assistant", "Tasks", "Plan", "Money", "Meetings", "Systems", "Team", "ThisWeek"].includes(view) && (
           <>
             {view === "RevenueProject" && (
               <div className="mb-8">
@@ -826,7 +719,7 @@ export default function RoadmapPage() {
             )}
             {view !== "Blocked" && (
               <AddItem
-                view={view} quarterId={current?.id ?? null}
+                view={dashboard ? "ThisWeek" : view} quarterId={current?.id ?? null}
                 open={adding} setOpen={setAdding} onDone={load} onError={setError}
                 ownerOptions={ownerOptions}
               />
@@ -836,8 +729,8 @@ export default function RoadmapPage() {
 
       </main>
 
-      <Assistant onChanged={load} />
-    </div>
+      <footer className="hl-footer"><span>HighLife Studios · Built for steady progress.</span><button onClick={() => setView("Assistant")}><Sparkles size={14}/>Ask your assistant</button></footer>
+      </div></div></div>
   );
 }
 
